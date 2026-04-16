@@ -1,156 +1,178 @@
 <!DOCTYPE html>
 <html lang="en">
+<!--
+  Larry Voice Catalog — design notes
+  ==================================
+  APPROACH: voices are PRE-GENERATED (Gemini 3.1 Flash TTS preview is a paid
+  API with a 10-rpm rate limit; live-generating on page load would hit quota
+  and break for anyone but the author). Each .mp3 in mp3/ is a static artifact
+  committed to this repo and served via GitHub Pages.
+
+  SPEED CONTROL: instead of pre-rendering each voice at 5 speeds
+  (1x/1.25x/1.4x/1.6x/1.8x), we ship a single MP3 per voice and use the
+  HTML5 MediaElement .playbackRate property to speed it up live in the
+  browser. This keeps the repo small, gives Igor continuous speed control
+  instead of fixed buckets, and preserves pitch on modern browsers (Chrome
+  / Safari / Firefox all do time-stretch rather than naive resampling for
+  playbackRate in the 0.5-2.0 range).
+
+  LAYOUT: one <audio> tag per voice, with a global speed slider at the top
+  that applies to all audio elements on speed-change. Custom presets
+  (Charon / Freud / Soprano) stay expanded; catalog sweep is collapsed by
+  default to keep the page short.
+-->
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Larry Voice Catalog — Gemini 3.1 Flash TTS</title>
 <style>
   body { font-family: -apple-system, system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #222; }
   h1 { border-bottom: 2px solid #333; padding-bottom: .3rem; }
   h2 { margin-top: 2.5rem; color: #444; }
-  h3 { margin-top: 1.5rem; color: #555; font-size: 1.05em; }
-  .voice { display: flex; align-items: center; gap: .8rem; padding: .4rem 0; border-bottom: 1px solid #eee; flex-wrap: wrap; }
-  .voice-name { font-weight: 600; min-width: 130px; }
-  .voice-note { color: #666; font-size: .85em; flex: 1; min-width: 160px; }
-  .voice-time { color: #999; font-size: .8em; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
-  audio { max-width: 260px; }
+  h3 { margin-top: 1rem; color: #555; font-size: 1.02em; }
+  .voice { display: grid; grid-template-columns: 140px 1fr 280px; gap: 1rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid #eee; }
+  .voice-name { font-weight: 600; }
+  .voice-note { color: #666; font-size: .85em; }
+  .voice-time { color: #999; font-size: .78em; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  audio { width: 280px; height: 36px; }
   .meta { background: #f4f4f4; padding: .8rem 1rem; border-radius: 6px; font-size: .9em; }
   .meta a { color: #0969da; }
   a.details { color: #0969da; font-weight: 600; }
-  .speed-row { display: flex; gap: 1rem; padding: .3rem 0 .3rem 130px; flex-wrap: wrap; font-size: .8em; color: #777; align-items: center; }
-  .speed-row audio { max-width: 200px; }
+
+  /* Speed-slider control (sticky at top of page while scrolling) */
+  #speed-control { position: sticky; top: 0; background: #fff; padding: .7rem 1rem; border-bottom: 2px solid #333; z-index: 10; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  #speed-control label { font-weight: 600; min-width: 120px; }
+  #speed-slider { flex: 1; max-width: 320px; }
+  #speed-value { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 55px; color: #0969da; }
+  #speed-note { color: #777; font-size: .82em; flex-basis: 100%; }
+
   details { margin: 1rem 0; padding: .6rem 1rem; background: #fafafa; border: 1px solid #e4e4e4; border-radius: 6px; }
   details > summary { cursor: pointer; font-weight: 600; color: #333; padding: .3rem 0; }
   details[open] { background: #fff; }
-  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9em; }
-  th, td { text-align: left; padding: .4rem .7rem; border-bottom: 1px solid #e4e4e4; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .88em; }
+  th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid #e4e4e4; }
   th { background: #f4f4f4; font-weight: 600; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .preset-callout { background: #eaf3ff; border-left: 3px solid #0969da; padding: .5rem .8rem; margin: .5rem 0 1rem 0; font-size: .85em; border-radius: 0 4px 4px 0; color: #0a3d7a; }
 </style>
 </head>
 <body>
+
+<!-- Global speed control. One slider, all audio elements react via JS. -->
+<div id="speed-control">
+  <label for="speed-slider">Playback speed:</label>
+  <input id="speed-slider" type="range" min="0.5" max="2.0" step="0.05" value="1.0">
+  <span id="speed-value">1.00×</span>
+  <span id="speed-note">Browser time-stretches on the fly — no file reload. Modern browsers preserve pitch in 0.5–2× range.</span>
+</div>
+
 <h1>Larry Voice Catalog</h1>
 
 <div class="meta">
   <strong>Model:</strong> <code>gemini-3.1-flash-tts-preview</code><br>
   <strong>Date:</strong> 2026-04-16 · <strong>Phrase:</strong> "Hi Igor, this is Larry testing the Gemini voice catalog at regular pacing."<br>
-  <strong>Audio:</strong> 24 kHz mono · <strong>Pricing:</strong> ~$0.02 per 5s utterance · <strong>Rate limit:</strong> 10 rpm (preview)<br>
-  <strong>Details + pricing + how-it-was-generated:</strong> <a class="details" href="how-it-works.html">How was this generated? →</a><br>
+  <strong>Audio:</strong> 24 kHz mono · <strong>Pricing:</strong> ~$0.02 per 5 s utterance · <strong>Rate limit:</strong> 10 rpm (preview)<br>
+  <strong>Details:</strong> <a class="details" href="how-it-works.html">How was this generated? →</a><br>
   <strong>Repo:</strong> <a href="https://github.com/idvorkin-ai-tools/larry-voice-samples">github.com/idvorkin-ai-tools/larry-voice-samples</a>
 </div>
 
-<h2>Latency reference table</h2>
-<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Wall-clock time to generate a ~5–6 s utterance. Mean ≈ 1.0× realtime. Sorted fastest → slowest.</p>
+<div class="preset-callout">
+ℹ️ <strong>These samples are pre-generated, not live.</strong> Each MP3 was produced once via the Gemini 3.1 Flash TTS preview endpoint and committed to this repo. The speed slider above uses the browser's <code>HTMLMediaElement.playbackRate</code> — it doesn't call the API. This keeps the page free and instant.
+</div>
+
+<h2>Latency &amp; cost reference</h2>
+<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Gemini generation runs ≈ 1.0× realtime. Cost is dominated by output audio tokens ($10/M). Text-input tokens are negligible. Numbers below are observed wall-clocks and token-based projections.</p>
 <table>
-<tr><th>Voice</th><th>Wall-clock</th><th>Note</th></tr>
-<tr><td>Callirrhoe</td><td class="num">4.18 s</td><td>Fastest</td></tr>
-<tr><td>Erinome</td><td class="num">4.24 s</td><td>—</td></tr>
-<tr><td>Umbriel</td><td class="num">4.29 s</td><td>—</td></tr>
-<tr><td>Kore</td><td class="num">4.38 s</td><td>Reads feminine</td></tr>
-<tr><td>Iapetus</td><td class="num">4.66 s</td><td>—</td></tr>
-<tr><td>Leda</td><td class="num">4.70 s</td><td>—</td></tr>
-<tr><td>Autonoe</td><td class="num">4.77 s</td><td>—</td></tr>
-<tr><td>Algenib</td><td class="num">4.78 s</td><td>—</td></tr>
-<tr><td>Orus</td><td class="num">4.88 s</td><td>"Lively male"</td></tr>
-<tr><td>Enceladus</td><td class="num">5.18 s</td><td>Male-coded</td></tr>
-<tr><td>Aoede</td><td class="num">5.21 s</td><td>"Warm"</td></tr>
-<tr><td><strong>Charon</strong> ⭐</td><td class="num">5.32 s</td><td><strong>Larry default</strong></td></tr>
-<tr><td>Despina</td><td class="num">5.51 s</td><td>—</td></tr>
-<tr><td>Zephyr</td><td class="num">5.51 s</td><td>—</td></tr>
-<tr><td>Puck</td><td class="num">5.57 s</td><td>Upbeat, playful</td></tr>
-<tr><td>Algieba</td><td class="num">5.97 s</td><td>—</td></tr>
-<tr><td>Fenrir</td><td class="num">6.75 s</td><td>Slowest, widest dynamic</td></tr>
+<tr><th>Voice</th><th>5 s utterance</th><th>1 min utterance (projected)</th><th>1 min cost (projected)</th></tr>
+<tr><td>Callirrhoe (fastest)</td><td class="num">4.18 s</td><td class="num">~50 s</td><td class="num">$0.24</td></tr>
+<tr><td>Erinome</td><td class="num">4.24 s</td><td class="num">~51 s</td><td class="num">$0.24</td></tr>
+<tr><td>Umbriel</td><td class="num">4.29 s</td><td class="num">~51 s</td><td class="num">$0.24</td></tr>
+<tr><td>Kore</td><td class="num">4.38 s</td><td class="num">~53 s</td><td class="num">$0.24</td></tr>
+<tr><td>Iapetus</td><td class="num">4.66 s</td><td class="num">~56 s</td><td class="num">$0.24</td></tr>
+<tr><td>Leda</td><td class="num">4.70 s</td><td class="num">~56 s</td><td class="num">$0.24</td></tr>
+<tr><td>Autonoe</td><td class="num">4.77 s</td><td class="num">~57 s</td><td class="num">$0.24</td></tr>
+<tr><td>Algenib</td><td class="num">4.78 s</td><td class="num">~57 s</td><td class="num">$0.24</td></tr>
+<tr><td>Orus</td><td class="num">4.88 s</td><td class="num">~59 s</td><td class="num">$0.24</td></tr>
+<tr><td>Enceladus</td><td class="num">5.18 s</td><td class="num">~62 s</td><td class="num">$0.24</td></tr>
+<tr><td>Aoede</td><td class="num">5.21 s</td><td class="num">~63 s</td><td class="num">$0.24</td></tr>
+<tr><td><strong>Charon</strong> ⭐</td><td class="num">5.32 s</td><td class="num">~64 s</td><td class="num">$0.24</td></tr>
+<tr><td>Despina</td><td class="num">5.51 s</td><td class="num">~66 s</td><td class="num">$0.24</td></tr>
+<tr><td>Zephyr</td><td class="num">5.51 s</td><td class="num">~66 s</td><td class="num">$0.24</td></tr>
+<tr><td>Puck</td><td class="num">5.57 s</td><td class="num">~67 s</td><td class="num">$0.24</td></tr>
+<tr><td>Algieba</td><td class="num">5.97 s</td><td class="num">~72 s</td><td class="num">$0.24</td></tr>
+<tr><td>Fenrir (slowest)</td><td class="num">6.75 s</td><td class="num">~81 s</td><td class="num">$0.24</td></tr>
 </table>
+<p style="color:#777; font-size:.82em;">Projection method: wall-clock scales ≈ linearly with audio duration (observed, not inferred). Cost is driven by audio output tokens (≈400 tokens/s → 24 000 tokens/min × $10/1M = $0.24). Text input at ~150 chars/min is $0.00002 (negligible). Preview tier pricing; may shift at GA.</p>
 
-<h2>Custom voice presets (Charon base + style directive)</h2>
+<h2>Custom voice presets</h2>
+<p style="color:#666; font-size:.9em;">Charon base voice + natural-language style directive. Use the slider above to speed up playback.</p>
 
-<h3>Larry default (plain Charon)</h3>
 <div class="voice">
-  <div class="voice-name">1× (native)</div>
+  <div class="voice-name">Larry (plain Charon)</div>
   <div class="voice-note">No style directive — baseline</div>
-  <div class="voice-time">8.48 s</div>
   <audio controls src="mp3/larry-tts-charon.mp3"></audio>
 </div>
-<details class="speed-details">
-<summary>Faster variants (1.25× / 1.4× / 1.6× / 1.8×)</summary>
-<div class="speed-row">
-  1.25×: <audio controls src="mp3/larry-tts-charon-1.25x.mp3"></audio>
-  1.4×: <audio controls src="mp3/larry-tts-charon-1.4x.mp3"></audio>
-</div>
-<div class="speed-row">
-  1.6×: <audio controls src="mp3/larry-tts-charon-1.6x.mp3"></audio>
-  1.8×: <audio controls src="mp3/larry-tts-charon-1.8x.mp3"></audio>
-</div>
-</details>
-
-<h3>Freud preset</h3>
 <div class="voice">
-  <div class="voice-name">1× (native)</div>
+  <div class="voice-name">Freud preset</div>
   <div class="voice-note">Thoughtful Viennese baritone — clinical, measured</div>
-  <div class="voice-time">17.32 s</div>
   <audio controls src="mp3/larry-freud.mp3"></audio>
 </div>
-<details class="speed-details">
-<summary>Faster variants (1.25× / 1.4× / 1.6× / 1.8×)</summary>
-<div class="speed-row">
-  1.25×: <audio controls src="mp3/larry-freud-1.25x.mp3"></audio>
-  1.4×: <audio controls src="mp3/larry-freud-1.4x.mp3"></audio>
-</div>
-<div class="speed-row">
-  1.6×: <audio controls src="mp3/larry-freud-1.6x.mp3"></audio>
-  1.8×: <audio controls src="mp3/larry-freud-1.8x.mp3"></audio>
-</div>
-</details>
-
-<h3>Soprano preset</h3>
 <div class="voice">
-  <div class="voice-name">1× (native)</div>
+  <div class="voice-name">Soprano preset</div>
   <div class="voice-note">Raspy North-Jersey — intimate, affectionate menace</div>
-  <div class="voice-time">8.96 s</div>
   <audio controls src="mp3/larry-soprano.mp3"></audio>
 </div>
-<details class="speed-details">
-<summary>Faster variants (1.25× / 1.4× / 1.6× / 1.8×)</summary>
-<div class="speed-row">
-  1.25×: <audio controls src="mp3/larry-soprano-1.25x.mp3"></audio>
-  1.4×: <audio controls src="mp3/larry-soprano-1.4x.mp3"></audio>
-</div>
-<div class="speed-row">
-  1.6×: <audio controls src="mp3/larry-soprano-1.6x.mp3"></audio>
-  1.8×: <audio controls src="mp3/larry-soprano-1.8x.mp3"></audio>
-</div>
-</details>
 
 <details>
 <summary>Catalog sweep — 17 working Gemini voices (click to expand)</summary>
-
-<p style="color:#666; font-size:.9em;">Wall-clock column = time to generate that specific sample. Parallel burst of 6, then serial retry at 7 s pacing for the remainder when the 10 rpm quota bit.</p>
-
-<div class="voice"><div class="voice-name">Charon ⭐</div><div class="voice-note">Current Larry default — baritone storyteller</div><div class="voice-time">5.32 s</div><audio controls src="mp3/Charon.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Fenrir</div><div class="voice-note">Excitable baritone — widest dynamic range</div><div class="voice-time">6.75 s</div><audio controls src="mp3/Fenrir.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Orus</div><div class="voice-note">"Lively male"</div><div class="voice-time">4.88 s</div><audio controls src="mp3/Orus.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Puck</div><div class="voice-note">Upbeat, playful male</div><div class="voice-time">5.57 s</div><audio controls src="mp3/Puck.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Enceladus</div><div class="voice-note">Male-coded, neutral</div><div class="voice-time">5.18 s</div><audio controls src="mp3/Enceladus.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Iapetus</div><div class="voice-note">Neutral-to-cool</div><div class="voice-time">4.66 s</div><audio controls src="mp3/Iapetus.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Algenib</div><div class="voice-note">Neutral</div><div class="voice-time">4.78 s</div><audio controls src="mp3/Algenib.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Algieba</div><div class="voice-note">Neutral</div><div class="voice-time">5.97 s</div><audio controls src="mp3/Algieba.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Umbriel</div><div class="voice-note">Neutral</div><div class="voice-time">4.29 s</div><audio controls src="mp3/Umbriel.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Autonoe</div><div class="voice-note">Neutral</div><div class="voice-time">4.77 s</div><audio controls src="mp3/Autonoe.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Zephyr</div><div class="voice-note">Airy</div><div class="voice-time">5.51 s</div><audio controls src="mp3/Zephyr.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Aoede</div><div class="voice-note">"Warm"</div><div class="voice-time">5.21 s</div><audio controls src="mp3/Aoede.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Leda</div><div class="voice-note">Neutral-warm</div><div class="voice-time">4.70 s</div><audio controls src="mp3/Leda.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Callirrhoe</div><div class="voice-note">Fastest generation</div><div class="voice-time">4.18 s</div><audio controls src="mp3/Callirrhoe.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Despina</div><div class="voice-note">Smooth</div><div class="voice-time">5.51 s</div><audio controls src="mp3/Despina.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Erinome</div><div class="voice-note">Neutral</div><div class="voice-time">4.24 s</div><audio controls src="mp3/Erinome.mp3"></audio></div>
-<div class="voice"><div class="voice-name">Kore</div><div class="voice-note">"Firm" — reads feminine</div><div class="voice-time">4.38 s</div><audio controls src="mp3/Kore.mp3"></audio></div>
-
+<p style="color:#666; font-size:.9em;">Each voice ran the same phrase. Slider above affects all of them.</p>
+<div class="voice"><div class="voice-name">Charon ⭐</div><div class="voice-note">Larry default · baritone storyteller</div><audio controls src="mp3/Charon.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Fenrir</div><div class="voice-note">Excitable baritone · widest dynamic</div><audio controls src="mp3/Fenrir.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Orus</div><div class="voice-note">"Lively male"</div><audio controls src="mp3/Orus.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Puck</div><div class="voice-note">Upbeat, playful male</div><audio controls src="mp3/Puck.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Enceladus</div><div class="voice-note">Male-coded, neutral</div><audio controls src="mp3/Enceladus.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Iapetus</div><div class="voice-note">Neutral-to-cool</div><audio controls src="mp3/Iapetus.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Algenib</div><div class="voice-note">Neutral</div><audio controls src="mp3/Algenib.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Algieba</div><div class="voice-note">Neutral</div><audio controls src="mp3/Algieba.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Umbriel</div><div class="voice-note">Neutral</div><audio controls src="mp3/Umbriel.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Autonoe</div><div class="voice-note">Neutral</div><audio controls src="mp3/Autonoe.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Zephyr</div><div class="voice-note">Airy</div><audio controls src="mp3/Zephyr.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Aoede</div><div class="voice-note">"Warm"</div><audio controls src="mp3/Aoede.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Leda</div><div class="voice-note">Neutral-warm</div><audio controls src="mp3/Leda.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Callirrhoe</div><div class="voice-note">Fastest generation</div><audio controls src="mp3/Callirrhoe.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Despina</div><div class="voice-note">Smooth</div><audio controls src="mp3/Despina.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Erinome</div><div class="voice-note">Neutral</div><audio controls src="mp3/Erinome.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Kore</div><div class="voice-note">"Firm" · reads feminine</div><audio controls src="mp3/Kore.mp3"></audio></div>
 </details>
 
 <details>
 <summary>Not available on preview endpoint — 13 voices (click to expand)</summary>
-<p style="font-size:.9em; color:#555;">These names appear in Google's documented catalog but return silent failures on <code>gemini-3.1-flash-tts-preview</code> as of 2026-04-16: Achernar, Achird, Alnilam, Gacrux, Laomedeia, Pulcherrima, Rasalgethi, Sadachbia, Sadaltager, Schedar, Sulafat, Vindemiatrix, Zubenelgenubi. May be added later as the preview matures.</p>
+<p style="font-size:.9em; color:#555;">These names appear in Google's documented catalog but return silent failures on <code>gemini-3.1-flash-tts-preview</code> as of 2026-04-16: Achernar, Achird, Alnilam, Gacrux, Laomedeia, Pulcherrima, Rasalgethi, Sadachbia, Sadaltager, Schedar, Sulafat, Vindemiatrix, Zubenelgenubi.</p>
 </details>
 
 <p style="margin-top: 2rem; color: #888; font-size:.85em;">Generated 2026-04-16 · <a class="details" href="how-it-works.html">How was this generated? →</a></p>
+
+<script>
+// Global speed slider — applies playbackRate to every <audio> element on the page.
+// Runs on input (live) so you can slide while audio is playing and hear the change.
+(function() {
+  const slider = document.getElementById('speed-slider');
+  const label = document.getElementById('speed-value');
+  function applyRate() {
+    const rate = parseFloat(slider.value);
+    label.textContent = rate.toFixed(2) + '×';
+    document.querySelectorAll('audio').forEach(a => { a.playbackRate = rate; });
+  }
+  slider.addEventListener('input', applyRate);
+  // Also re-apply when a new audio element starts playing (covers <details> that
+  // were collapsed when the slider moved — their audio elements existed but
+  // playbackRate was not re-set if user opens them later).
+  document.querySelectorAll('audio').forEach(a => {
+    a.addEventListener('play', () => { a.playbackRate = parseFloat(slider.value); });
+  });
+  applyRate();
+})();
+</script>
 
 </body>
 </html>
