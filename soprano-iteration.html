@@ -62,7 +62,12 @@
 
 <h1>Soprano iteration — can Gemini critique its own voice?</h1>
 
-<p><strong>Experiment</strong> (2026-04-16): close the loop entirely inside Google's Gemini family. <strong>Generator:</strong> <code>gemini-3.1-flash-tts-preview</code>. <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> — which, unlike Claude Opus 4.6, accepts audio input natively. Render → feed back to critic → critic scores + proposes prompt mods → regenerate. <strong>Target:</strong> James Gandolfini as Tony Soprano.</p>
+<h2 style="margin-top:.5rem; color:#222; border:none;">The user problem</h2>
+<blockquote style="font-style:italic; color:#333; border-left:4px solid #0969da; background:#f5faff; padding:.8rem 1.2rem; margin:.5rem 0 1rem 0; border-radius:0 6px 6px 0;">
+  I want a voice that sounds like <strong>Tony Soprano</strong>. Gemini 3.1 Flash TTS accepts natural-language voice prompts — so in theory I can just describe the voice and the model does the rest. In practice, how do you actually tune one of these prompts? What happens when the first attempt sounds wrong? How do you iterate toward the thing in your head without shipping each draft to a human listener?
+</blockquote>
+
+<p><strong>Experiment</strong> (2026-04-16): close the loop entirely inside Google's Gemini family — one model generates, another model listens and critiques, the critique rewrites the prompt, repeat. <strong>Generator:</strong> <code>gemini-3.1-flash-tts-preview</code>. <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> — which, unlike Claude Opus 4.6, accepts audio input natively. <strong>Target:</strong> James Gandolfini as Tony Soprano.</p>
 
 <!-- Winner box — the main takeaway goes at the top, not the bottom. -->
 <div class="winner">
