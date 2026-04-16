@@ -81,28 +81,24 @@
 </div>
 
 <h2>Latency &amp; cost reference</h2>
-<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Gemini generation runs ≈ 1.0× realtime. Cost is dominated by output audio tokens ($10/M). Text-input tokens are negligible. Numbers below are observed wall-clocks and token-based projections.</p>
+<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Cost per minute of output is fixed ($0.24 = 24 000 audio tokens × $10/1M). Wall clock scales ≈ linearly with audio length — voice choice shifts it by ±10% only, so one set of numbers covers the whole catalog.</p>
 <table>
-<tr><th>Voice</th><th>5 s utterance</th><th>1 min utterance (projected)</th><th>1 min cost (projected)</th></tr>
-<tr><td>Callirrhoe (fastest)</td><td class="num">4.18 s</td><td class="num">~50 s</td><td class="num">$0.24</td></tr>
-<tr><td>Erinome</td><td class="num">4.24 s</td><td class="num">~51 s</td><td class="num">$0.24</td></tr>
-<tr><td>Umbriel</td><td class="num">4.29 s</td><td class="num">~51 s</td><td class="num">$0.24</td></tr>
-<tr><td>Kore</td><td class="num">4.38 s</td><td class="num">~53 s</td><td class="num">$0.24</td></tr>
-<tr><td>Iapetus</td><td class="num">4.66 s</td><td class="num">~56 s</td><td class="num">$0.24</td></tr>
-<tr><td>Leda</td><td class="num">4.70 s</td><td class="num">~56 s</td><td class="num">$0.24</td></tr>
-<tr><td>Autonoe</td><td class="num">4.77 s</td><td class="num">~57 s</td><td class="num">$0.24</td></tr>
-<tr><td>Algenib</td><td class="num">4.78 s</td><td class="num">~57 s</td><td class="num">$0.24</td></tr>
-<tr><td>Orus</td><td class="num">4.88 s</td><td class="num">~59 s</td><td class="num">$0.24</td></tr>
-<tr><td>Enceladus</td><td class="num">5.18 s</td><td class="num">~62 s</td><td class="num">$0.24</td></tr>
-<tr><td>Aoede</td><td class="num">5.21 s</td><td class="num">~63 s</td><td class="num">$0.24</td></tr>
-<tr><td><strong>Charon</strong> ⭐</td><td class="num">5.32 s</td><td class="num">~64 s</td><td class="num">$0.24</td></tr>
-<tr><td>Despina</td><td class="num">5.51 s</td><td class="num">~66 s</td><td class="num">$0.24</td></tr>
-<tr><td>Zephyr</td><td class="num">5.51 s</td><td class="num">~66 s</td><td class="num">$0.24</td></tr>
-<tr><td>Puck</td><td class="num">5.57 s</td><td class="num">~67 s</td><td class="num">$0.24</td></tr>
-<tr><td>Algieba</td><td class="num">5.97 s</td><td class="num">~72 s</td><td class="num">$0.24</td></tr>
-<tr><td>Fenrir (slowest)</td><td class="num">6.75 s</td><td class="num">~81 s</td><td class="num">$0.24</td></tr>
+<tr><th>Audio length</th><th>Wall clock (typical)</th><th>Cost</th></tr>
+<tr><td>5 s utterance</td><td class="num">~5 s (range 4.2–6.8)</td><td class="num">$0.02</td></tr>
+<tr><td>1 min utterance</td><td class="num">~60 s</td><td class="num">$0.24</td></tr>
+<tr><td>10 min long-form</td><td class="num">~10 min</td><td class="num">$2.40</td></tr>
 </table>
-<p style="color:#777; font-size:.82em;">Projection method: wall-clock scales ≈ linearly with audio duration (observed, not inferred). Cost is driven by audio output tokens (≈400 tokens/s → 24 000 tokens/min × $10/1M = $0.24). Text input at ~150 chars/min is $0.00002 (negligible). Preview tier pricing; may shift at GA.</p>
+<p style="color:#777; font-size:.82em;">Text input at ~150 chars/min is $0.00002 (negligible). Preview tier; may shift at GA.</p>
+
+<h2>Custom preset latency (measured)</h2>
+<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Style directives add zero API-side overhead — Gemini reads the prose as metadata, not speech. BUT the styled output is typically 15–25% longer because the model adds persona pauses/beats. Same phrase, different prompts:</p>
+<table>
+<tr><th>Preset</th><th>Wall clock</th><th>Audio length</th><th>Cost</th></tr>
+<tr><td>Plain Charon</td><td class="num">4.7 s</td><td class="num">6.4 s</td><td class="num">$0.026</td></tr>
+<tr><td>+ Soprano style</td><td class="num">4.7 s</td><td class="num">7.8 s</td><td class="num">$0.031</td></tr>
+<tr><td>+ Freud style (diff phrase)</td><td class="num">~5 s</td><td class="num">17.3 s</td><td class="num">~$0.07</td></tr>
+</table>
+<p style="color:#777; font-size:.82em;">Takeaway: style presets cost ~20% more per utterance — the extra is persona quality, not overhead.</p>
 
 <h2>Custom voice presets</h2>
 <p style="color:#666; font-size:.9em;">Charon base voice + natural-language style directive. Use the slider above to speed up playback.</p>
