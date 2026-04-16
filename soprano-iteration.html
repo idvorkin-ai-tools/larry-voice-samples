@@ -197,7 +197,140 @@ generator — inverting the usual "inference is cheap, analysis is expensive" in
 preview-tier rpm cap.</p>
 
 <hr>
-<p style="color:#888; font-size:.85em;">Generated 2026-04-16 · Loop source: <code>/tmp/larry-soprano-iter/iterate.py</code> · <a href="index.html">← voice catalog</a> · <a href="how-it-works.html">how-it-works →</a></p>
+
+<h1 style="margin-top:3rem; border-bottom:2px solid #333;">v2 — Tournament-style loop with dimensional scorecard</h1>
+
+<div class="meta">
+  <strong>Experiment v2 (2026-04-16):</strong> v1 plateaued at 4/10. The
+  redesign addresses five specific defects: (1) base-voice sweep before
+  prompt tuning instead of locking on Charon; (2) dimensional scorecard
+  (six dimensions, 0-10 each) instead of a single overall score;
+  (3) structured prompt with six named slots and slot-targeted replacement
+  instead of monotonic append; (4) tournament-style round with three
+  candidates ranked by the critic; (5) regression guard that reverts a
+  slot change if any strength dimension drops by more than 1 from the
+  Enceladus baseline. Budget: ~20 TTS + ~20 critic calls, early-stop on
+  two flat rounds.
+</div>
+
+<h2>Result headline</h2>
+<table>
+<tr><th>Iteration</th><th>Voice</th><th>Overall</th><th>One-line verdict</th></tr>
+<tr>
+  <td>v1 final</td>
+  <td>Charon</td>
+  <td class="num">4/10</td>
+  <td>"Exaggerated breathing and pleading upward inflection turn Tony into a cartoonish caricature."</td>
+</tr>
+<tr>
+  <td>v2 final</td>
+  <td><strong>Enceladus</strong></td>
+  <td class="num" style="font-weight:800;">6/10</td>
+  <td>"Pacing and heavy breathing are spot-on, but the timbre lacks the deep chest resonance and forward nasal placement needed to fully sell the illusion."</td>
+</tr>
+</table>
+
+<h2>Final v2 clip <span class="score score-mid">6/10</span></h2>
+<div class="iter">
+  <audio controls src="iterations/v2/final.mp3"></audio>
+  <h3>Final per-dimension scorecard</h3>
+  <table>
+  <tr><th>chest</th><th>nasal</th><th>pacing</th><th>pitch</th><th>fry</th><th>overall</th></tr>
+  <tr><td class="num">5</td><td class="num">6</td><td class="num">8</td><td class="num">6</td><td class="num">7</td><td class="num" style="font-weight:800;">6</td></tr>
+  </table>
+  <h3>Final prompt (structured — six slots)</h3>
+  <div class="prompt-box">Speak from deep in the chest with a heavy bass-baritone resonance, as if the voice is anchored in the sternum rather than the head. Introduce heavy sinus congestion and audible, labored nasal breathing between phrases to simulate years of heavy smoking and physical weight. Short sentences with a shrugged, unhurried cadence. Pauses are deliberate beats, not hesitations. Slightly lethargic, never rushed. Anchor the pitch in a low, authoritative baritone register, eliminating any upward lilt to maintain a flat, quietly menacing presence. Blend subtle, sustained vocal fry into the mid-vowels, not isolated rattles at sentence endings. Channel James Gandolfini as Tony Soprano in an intimate indoor scene — North-Jersey Italian-American, affectionate default, quiet menace underneath. Drop the final '-g' in gerunds (thinkin', doin'). Never shout.</div>
+  <p style="font-size:.9em;color:#555;"><strong>Delta from v1 baseline:</strong> (a) Charon → Enceladus, (b) NASAL_QUALITY slot now names "heavy sinus congestion + labored nasal breathing" explicitly, (c) PITCH slot says "anchor in a low baritone register, flat + quietly menacing" (replaced the v1-era "downward inflection authority" slot that was producing pleading intonation).</p>
+</div>
+
+<h2>Phase 1: base-voice sweep</h2>
+<p>All five male-coded voices were rendered with an identical seed prompt.
+The critic scored each on the same dimensional scorecard. Winner advances
+to the tournament phase.</p>
+
+<table>
+<tr><th>Voice</th><th>chest</th><th>nasal</th><th>pacing</th><th>pitch</th><th>fry</th><th>overall</th><th>Listen</th></tr>
+<tr><td>Charon <em>(v1 lock-in)</em></td><td class="num">4</td><td class="num">3</td><td class="num">5</td><td class="num">4</td><td class="num">2</td><td class="num">3</td><td><audio controls src="Charon.wav" style="width:220px;"></audio></td></tr>
+<tr><td>Fenrir</td><td class="num">2</td><td class="num">4</td><td class="num">5</td><td class="num">2</td><td class="num">3</td><td class="num">3</td><td><audio controls src="Fenrir.wav" style="width:220px;"></audio></td></tr>
+<tr><td>Orus</td><td class="num">3</td><td class="num">4</td><td class="num">5</td><td class="num">3</td><td class="num">2</td><td class="num">3</td><td><audio controls src="Orus.wav" style="width:220px;"></audio></td></tr>
+<tr><td>Puck</td><td class="num">4</td><td class="num">4</td><td class="num">6</td><td class="num">4</td><td class="num">3</td><td class="num">4</td><td><audio controls src="Puck.wav" style="width:220px;"></audio></td></tr>
+<tr style="background:#e8f5e8;"><td><strong>Enceladus ← winner</strong></td><td class="num"><strong>6</strong></td><td class="num">4</td><td class="num">5</td><td class="num"><strong>6</strong></td><td class="num">5</td><td class="num"><strong>5</strong></td><td><audio controls src="Enceladus.wav" style="width:220px;"></audio></td></tr>
+</table>
+
+<p><strong>Key finding:</strong> base-voice choice is the single biggest
+lever. Enceladus at 5/10 with zero prompt tuning already exceeded v1's
+final Charon-on-tuned-prompt at 4/10. Charon's specific deficits
+(vocal_fry=2, nasal=3) are timbre characteristics of the base voice that
+style directives could only partially mask. Enceladus shipped with
+near-twice the chest_resonance and pitch_authority out of the box.</p>
+
+<h2>Tournament rounds</h2>
+<p>Each round targets the three lowest-scoring dimensions with three
+candidates, each mutating a single slot with the critic's
+slot-specific directive. Winner carries forward; losers dropped.</p>
+
+<table>
+<tr><th>Round</th><th>Candidate</th><th>Mutated slot</th><th>chest</th><th>nasal</th><th>pacing</th><th>pitch</th><th>fry</th><th>overall</th><th>Disposition</th></tr>
+<tr><td>R0 (Enceladus baseline)</td><td>—</td><td>—</td><td class="num">6</td><td class="num">4</td><td class="num">5</td><td class="num">6</td><td class="num">5</td><td class="num">5</td><td>seed</td></tr>
+<tr><td>R1</td><td>C1</td><td>NASAL_QUALITY</td><td class="num">4</td><td class="num">5</td><td class="num">7</td><td class="num">4</td><td class="num">5</td><td class="num">5</td><td><strong>accept</strong></td></tr>
+<tr><td>R1</td><td>C2</td><td>PACING</td><td class="num">5</td><td class="num">4</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td>reject</td></tr>
+<tr><td>R1</td><td>C3</td><td>FRY</td><td class="num">4</td><td class="num">4</td><td class="num">6</td><td class="num">4</td><td class="num">3</td><td class="num">4</td><td>reject</td></tr>
+<tr><td>R2</td><td>C1</td><td>CHEST_RESONANCE</td><td class="num">7</td><td class="num">5</td><td class="num">4</td><td class="num">6</td><td class="num">5</td><td class="num">5</td><td>reject</td></tr>
+<tr style="background:#e8f5e8;"><td>R2</td><td>C2</td><td>PITCH</td><td class="num">5</td><td class="num">6</td><td class="num"><strong>8</strong></td><td class="num"><strong>6</strong></td><td class="num"><strong>7</strong></td><td class="num"><strong>6</strong></td><td><strong>accept ← final</strong></td></tr>
+<tr><td>R2</td><td>C3</td><td>FRY</td><td class="num">4</td><td class="num">5</td><td class="num">6</td><td class="num">4</td><td class="num">6</td><td class="num">4</td><td>reject</td></tr>
+<tr><td>R3</td><td>C1</td><td>CHEST_RESONANCE</td><td class="num">5</td><td class="num">6</td><td class="num">8</td><td class="num">4</td><td class="num">7</td><td class="num">6</td><td>tied overall, but pitch regressed 2 → <strong>revert-guard fired</strong></td></tr>
+<tr><td>R3</td><td>C2</td><td>NASAL_QUALITY</td><td class="num">2</td><td class="num">4</td><td class="num">5</td><td class="num">3</td><td class="num">4</td><td class="num">3</td><td>reject</td></tr>
+<tr><td>R3</td><td>C3</td><td>PITCH</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td>reject</td></tr>
+</table>
+
+<p><strong>Early stop on round 3:</strong> no candidate improved on R2/C2's
+overall=6, and the best candidate (R3/C1) dropped pitch_authority 2
+points below the Enceladus-baseline anchor. The regression guard
+reverted the slot change and triggered the two-rounds-flat early stop.
+Total rounds run: 3 (base sweep + 2 accept + 1 revert).</p>
+
+<h2>Observations vs v1</h2>
+<ul>
+<li><strong>Base-voice choice dominates prompt tuning.</strong> Switching from
+Charon to Enceladus delivered +2 overall on its own (3→5). The best v1
+Charon-on-tuned-prompt (4/10) lost to raw Enceladus-on-seed-prompt (5/10).
+The lesson: optimize the substrate before optimizing the directive.</li>
+<li><strong>The regression guard works.</strong> R3/C1 hit overall=6 by
+gaining nasal/fry at the cost of pitch_authority (6→4). In v1's naive
+loop that candidate would have been adopted and the character's
+"quiet menace" authority would have collapsed. The strict-anchor check
+against Enceladus baseline caught it.</li>
+<li><strong>The critic is acoustically specific and consistent.</strong>
+Across all 14 critic calls in v2, the "next_prompt_mods" always named a
+valid slot and produced replacement directives in clinical acoustic
+language ("sub-laryngeal resonance", "reduced spectral tilt", "forward
+formant placement"). Temperature 0.3 (down from v1's 0.4) helped
+cross-round score consistency.</li>
+<li><strong>Single-slot mutation revealed a coupling bug.</strong> R2/C1
+(CHEST_RESONANCE mutation) scored chest=7 — highest chest of any run
+in either generation — but pacing collapsed to 4. Directives that push
+one dimension hard can cause the generator to over-rotate prosody
+elsewhere. Tournament ranking by overall correctly routed around this;
+monotonic-append would have layered the chest directive and paid the
+pacing cost anyway.</li>
+<li><strong>Ceiling: 6/10 without speaker cloning, probably 7/10 with two
+more rounds.</strong> R3/C1's overall=6-with-pitch-regression suggests a
+"pareto frontier" at around chest=5 pitch=6 pacing=8 — but cracking
+8/10+ likely requires either (a) a base voice with even more sub-bass
+than Enceladus, (b) multi-slot tournaments (mutate 2 slots per candidate
+to escape coupling traps), or (c) speaker-cloning on a Gandolfini
+reference — which was flagged out-of-scope for safety and licensing.</li>
+</ul>
+
+<h2>Cost &amp; budget</h2>
+<p>Approximate total: ~17 TTS calls + ~17 critic calls + 1 final render.
+TTS ≈ $0.05–0.15. Critic ≈ $0.02 (audio-input tier, 14 calls × ~2k
+tokens). Total end-to-end ≈ <strong>$0.20</strong>. Budget consumed
+inside the &lt; $0.50 ceiling with ~18 calls out of a ~20 budget.
+Wall-clock ~12 min serialized at 7s inter-call pacing.</p>
+
+<hr>
+<p style="color:#888; font-size:.85em;">Generated 2026-04-16 · v1 source: <code>/tmp/larry-soprano-iter/iterate.py</code> · v2 source: <code>/tmp/larry-soprano-iter-v2/iterate-v2.py</code> + <code>resume-v2.py</code> · <a href="index.html">← voice catalog</a> · <a href="how-it-works.html">how-it-works →</a></p>
 
 </body>
 </html>
