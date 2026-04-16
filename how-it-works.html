@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>How was this generated? — Larry Voice Catalog</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; color: #222; line-height: 1.55; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: .3rem; }
+  h2 { margin-top: 2.5rem; color: #444; }
+  code { background: #f4f4f4; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
+  pre { background: #f4f4f4; padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; font-size: .85em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { text-align: left; padding: .5rem .8rem; border-bottom: 1px solid #ddd; }
+  th { background: #f8f8f8; }
+  .note { background: #fff8dc; border-left: 3px solid #e0b500; padding: .6rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+
+<p><a href="index.html">← Back to voice catalog</a></p>
+
+<h1>How was this generated?</h1>
+
+<h2>The pipeline</h2>
+
+<p>Every sample on the catalog page was produced through this flow:</p>
+
+<ol>
+<li>Igor (or Larry) writes a line of text.</li>
+<li>Optional: a <strong>style-directive</strong> (natural-language voice description) is prepended — e.g. "Speak in a raspy North-Jersey Italian-American baritone..."</li>
+<li>Text + optional directive are POSTed to the Gemini 3.1 Flash TTS preview endpoint with a chosen catalog <strong>voice name</strong> (Charon, Kore, Fenrir, etc.).</li>
+<li>Gemini returns base64-encoded 16-bit signed PCM at 24 kHz mono.</li>
+<li>The Python tool (<code>generate-tts.py</code>) decodes + wraps in a standard WAV header.</li>
+<li>MP3 mirrors are post-processed with <code>ffmpeg -codec:a libmp3lame -qscale:a 4</code> (nice-wrapped) for browser playback.</li>
+</ol>
+
+<h2>Model and endpoint</h2>
+
+<pre>POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent
+Content-Type: application/json
+x-goog-api-key: $GOOGLE_API_KEY
+
+{
+  "contents": [{ "parts": [{ "text": "..." }] }],
+  "generationConfig": {
+    "responseModalities": ["AUDIO"],
+    "speechConfig": {
+      "voiceConfig": {
+        "prebuiltVoiceConfig": { "voiceName": "Charon" }
+      }
+    }
+  }
+}</pre>
+
+<h2>Pricing (Gemini 3.1 Flash TTS, 2026-04-16)</h2>
+
+<table>
+<tr><th>Dimension</th><th>Rate</th><th>Typical Larry utterance</th></tr>
+<tr><td>Input text tokens</td><td>$0.50 / 1M</td><td>~75 chars ≈ 19 tokens ≈ $0.0000095</td></tr>
+<tr><td>Output audio tokens</td><td>$10.00 / 1M</td><td>~5s audio ≈ ~2,000 tokens ≈ $0.02</td></tr>
+<tr><td><strong>All-in per 5s utterance</strong></td><td colspan="2"><strong>~$0.02</strong></td></tr>
+<tr><td>Rate limit (preview)</td><td colspan="2">10 requests / minute</td></tr>
+</table>
+
+<p>Back-of-envelope: a Larry day with 20–30 voice replies runs roughly <strong>$0.40–$0.60</strong>, or <strong>$12–$18/month</strong>. Preview tier rates may change when the model graduates to GA.</p>
+
+<div class="note">
+<strong>Timing reality</strong>: mean generation wall-clock is <strong>~1.0×</strong> realtime — i.e. 5 s of audio takes ~5 s to produce. The preview endpoint caps at 10 rpm, so parallel sweeps fan out into serial retry when the quota bites.
+</div>
+
+<h2>Can Claude/Opus listen back to judge quality?</h2>
+
+<p><strong>Short answer:</strong> <strong>No — Claude Opus 4.6 does not accept audio input natively.</strong> The Messages API content blocks are text, image, document, tool_use/tool_result, search_result, server_tool_use, and thinking. Audio is not in the list.</p>
+
+<p>Open feature request: <a href="https://github.com/anthropics/anthropic-sdk-python/issues/1198">anthropic-sdk-python #1198</a>, filed Feb 2026, no ETA as of today.</p>
+
+<p>This means <strong>voice-quality judgment has to be done by Igor's ears</strong>, not by Larry. When tuning voice presets or A/B'ing catalog voices, Larry can:</p>
+<ul>
+<li>Generate candidates via <code>gen-tts</code></li>
+<li>Run them through <code>gen-stt</code> (Parakeet ONNX) to verify transcription fidelity (a proxy for intelligibility, not quality)</li>
+<li>Ship the WAVs to Igor via Telegram for his perceptual call</li>
+</ul>
+
+<p>If perceptual evaluation from an AI is desired, workarounds exist outside the Claude API:</p>
+<ul>
+<li><strong>Gemini 2.x multimodal</strong> accepts audio input natively — good for sentiment, prosody, speaker-ID analysis. Would require a second API call to a different provider.</li>
+<li><strong>Whisper + Claude text analysis</strong> — transcribe audio, then ask Claude to analyze the transcript (loses prosody, good for content).</li>
+</ul>
+
+<p>For this catalog: pick by ear, then lock in the voice name in <code>tts-voice.txt</code>.</p>
+
+<h2>The <code>gen-tts</code> Python tool</h2>
+
+<p>Lives at <code>chop-conventions/skills/gen-tts/</code> (PR <a href="https://github.com/idvorkin/chop-conventions/pull/138">#138</a>). Single-file Python script, <code>uv run --script</code> shebang, stdlib-only. Flags:</p>
+
+<pre>./generate-tts.py \
+  --text "line to speak" \
+  --voice Charon \
+  --style-preset soprano \   # or --style-prompt "..." or --style-file voices/foo.txt
+  --output /tmp/larry.wav</pre>
+
+<p>Batch mode via ThreadPoolExecutor for parallel calls (respect the 10 rpm cap — 6 concurrent is the max that doesn't trigger quota). Directorial tags like <code>[short pause]</code> work inline; <code>[whisper]</code> and <code>[excited]</code> currently trip Gemini's safety filter, documented in SKILL.md.</p>
+
+<h2>Reproducibility</h2>
+
+<p>All 17 voice samples on the catalog page were generated with identical input text:</p>
+
+<blockquote><em>"Hi Igor, this is Larry testing the Gemini voice catalog at regular pacing."</em></blockquote>
+
+<p>Same phrase, different voices, no style directive. Each file's name is the catalog voice name. Wall-clock timings listed on the catalog page are the observed generation time for that specific sample.</p>
+
+<p>Custom-preset samples (<code>freud-preset.wav</code>, <code>soprano-preset.wav</code>) use Charon as the base voice + the natural-language directive from the preset file as a prefix.</p>
+
+<hr>
+
+<p><em>Generated 2026-04-16. If you find voice quality has shifted or pricing has changed materially, re-ping Larry for a regeneration sweep.</em></p>
+
+</body>
+</html>
