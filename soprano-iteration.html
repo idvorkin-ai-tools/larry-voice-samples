@@ -79,15 +79,15 @@
 <h2>Combined score trajectory — v1 → v2</h2>
 
 <table>
-<tr><th>Phase</th><th>Voice</th><th>Overall</th><th>What changed</th><th>Critic verdict (abbreviated)</th></tr>
-<tr class="phase-v1"><td>v1 iter 1</td><td>Charon</td><td class="num"><span class="score score-low">3</span></td><td>Baseline Soprano preset (lock-in)</td><td>"Whiny, cartoonish mob henchman."</td></tr>
-<tr class="phase-v1"><td>v1 iter 2</td><td>Charon</td><td class="num"><span class="score score-low">3</span></td><td>+3 mods appended</td><td>"Too light, nasal, rushed."</td></tr>
-<tr class="phase-v1"><td>v1 iter 3</td><td>Charon</td><td class="num"><span class="score score-low">4</span></td><td>+3 more mods (6 total, monotonic append)</td><td>"Cartoonish caricature, pleading inflection."</td></tr>
-<tr style="background:#f0f0f0;"><td colspan="5" style="text-align:center; font-size:.85em; color:#666;"><em>v2 redesign — base-voice sweep + dimensional scorecard + tournament + regression guard</em></td></tr>
-<tr class="phase-v2"><td>v2 sweep</td><td><strong>Enceladus</strong></td><td class="num"><span class="score score-mid">5</span></td><td>Untouched seed prompt, new base voice</td><td>"Chest resonance + pitch authority out of the box."</td></tr>
-<tr class="phase-v2"><td>v2 R1</td><td>Enceladus</td><td class="num"><span class="score score-mid">5</span></td><td>NASAL_QUALITY slot replaced</td><td>"Pacing lifted, chest still thin."</td></tr>
-<tr class="winner-row"><td>v2 R2 (final)</td><td><strong>Enceladus</strong></td><td class="num"><span class="score score-high">6</span></td><td>PITCH slot replaced — "flat authoritative baritone, no upward lilt"</td><td>"Pacing + breathing spot-on; timbre still missing chest."</td></tr>
-<tr class="phase-v2"><td>v2 R3</td><td>Enceladus</td><td class="num"><span class="score score-mid">6</span></td><td>CHEST_RESONANCE mutation → tied but pitch regressed; <strong>regression guard fired</strong>, reverted</td><td>Two flat rounds → early stop.</td></tr>
+<tr><th>Phase</th><th>Voice</th><th>Overall</th><th>What changed</th><th>Critic verdict (abbreviated)</th><th>Listen</th></tr>
+<tr class="phase-v1"><td>v1 iter 1</td><td>Charon</td><td class="num"><span class="score score-low">3</span></td><td>Baseline Soprano preset (lock-in)</td><td>"Whiny, cartoonish mob henchman."</td><td><audio controls preload="none" src="iterations/mp3/soprano-iter1.mp3" style="width:180px;"></audio></td></tr>
+<tr class="phase-v1"><td>v1 iter 2</td><td>Charon</td><td class="num"><span class="score score-low">3</span></td><td>+3 mods appended</td><td>"Too light, nasal, rushed."</td><td><audio controls preload="none" src="iterations/mp3/soprano-iter2.mp3" style="width:180px;"></audio></td></tr>
+<tr class="phase-v1"><td>v1 iter 3</td><td>Charon</td><td class="num"><span class="score score-low">4</span></td><td>+3 more mods (6 total, monotonic append)</td><td>"Cartoonish caricature, pleading inflection."</td><td><audio controls preload="none" src="iterations/mp3/soprano-iter3.mp3" style="width:180px;"></audio></td></tr>
+<tr style="background:#f0f0f0;"><td colspan="6" style="text-align:center; font-size:.85em; color:#666;"><em>v2 redesign — base-voice sweep + dimensional scorecard + tournament + regression guard</em></td></tr>
+<tr class="phase-v2"><td>v2 sweep</td><td><strong>Enceladus</strong></td><td class="num"><span class="score score-mid">5</span></td><td>Untouched seed prompt, new base voice</td><td>"Chest resonance + pitch authority out of the box."</td><td><audio controls preload="none" src="iterations/v2/base-Enceladus.mp3" style="width:180px;"></audio></td></tr>
+<tr class="phase-v2"><td>v2 R1</td><td>Enceladus</td><td class="num"><span class="score score-mid">5</span></td><td>NASAL_QUALITY slot replaced</td><td>"Pacing lifted, chest still thin."</td><td><span style="color:#aaa; font-size:.85em;">not kept</span></td></tr>
+<tr class="winner-row"><td>v2 R2 (final)</td><td><strong>Enceladus</strong></td><td class="num"><span class="score score-high">6</span></td><td>PITCH slot replaced — "flat authoritative baritone, no upward lilt"</td><td>"Pacing + breathing spot-on; timbre still missing chest."</td><td><audio controls preload="none" src="iterations/v2/final.mp3" style="width:180px;"></audio></td></tr>
+<tr class="phase-v2"><td>v2 R3</td><td>Enceladus</td><td class="num"><span class="score score-mid">6</span></td><td>CHEST_RESONANCE mutation → tied but pitch regressed; <strong>regression guard fired</strong>, reverted</td><td>Two flat rounds → early stop.</td><td><span style="color:#aaa; font-size:.85em;">reverted by guard</span></td></tr>
 </table>
 
 <p><strong>Net gain: +2 overall</strong> (v1 final 4 → v2 final 6). Most of it came from the base-voice swap before any prompt tuning.</p>
