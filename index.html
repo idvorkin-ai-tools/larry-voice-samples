@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Larry Voice Catalog — Gemini 3.1 Flash TTS</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: .3rem; }
+  h2 { margin-top: 2.5rem; color: #444; }
+  .voice { display: flex; align-items: center; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid #eee; }
+  .voice-name { font-weight: 600; min-width: 140px; }
+  .voice-note { color: #666; font-size: .85em; flex: 1; }
+  audio { max-width: 280px; }
+  .meta { background: #f4f4f4; padding: .8rem 1rem; border-radius: 6px; font-size: .9em; }
+</style>
+</head>
+<body>
+<h1>Larry Voice Catalog</h1>
+
+<div class="meta">
+  <strong>Model:</strong> <code>gemini-3.1-flash-tts-preview</code><br>
+  <strong>Date:</strong> 2026-04-16 · <strong>Test phrase:</strong> "Hi Igor, this is Larry testing the Gemini voice catalog at regular pacing."<br>
+  <strong>Audio:</strong> 24 kHz mono — WAV source, MP3 below for browser playback.<br>
+  <strong>Repo:</strong> <a href="https://github.com/idvorkin-ai-tools/larry-voice-samples">github.com/idvorkin-ai-tools/larry-voice-samples</a>
+</div>
+
+<h2>Custom voice presets (Charon base + style directive)</h2>
+
+<div class="voice">
+  <div class="voice-name">Larry default</div>
+  <div class="voice-note">Plain Charon, no style preset</div>
+  <audio controls src="mp3/larry-tts-charon.mp3"></audio>
+</div>
+<div class="voice">
+  <div class="voice-name">Freud preset</div>
+  <div class="voice-note">Thoughtful Viennese baritone — clinical, measured</div>
+  <audio controls src="mp3/larry-freud.mp3"></audio>
+</div>
+<div class="voice">
+  <div class="voice-name">Soprano preset</div>
+  <div class="voice-note">Raspy North-Jersey Italian-American — intimate, affectionate menace</div>
+  <audio controls src="mp3/larry-soprano.mp3"></audio>
+</div>
+
+<h2>Catalog sweep (17 working Gemini voices)</h2>
+
+<div class="voice"><div class="voice-name">Charon ⭐</div><div class="voice-note">Current Larry default — deep storyteller baritone</div><audio controls src="mp3/Charon.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Fenrir</div><div class="voice-note">Excitable baritone — widest dynamic range</div><audio controls src="mp3/Fenrir.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Orus</div><div class="voice-note">"Lively male"</div><audio controls src="mp3/Orus.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Puck</div><div class="voice-note">Upbeat, playful male</div><audio controls src="mp3/Puck.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Enceladus</div><div class="voice-note">Male-coded, neutral</div><audio controls src="mp3/Enceladus.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Iapetus</div><div class="voice-note">Neutral-to-cool</div><audio controls src="mp3/Iapetus.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Algenib</div><div class="voice-note">Neutral</div><audio controls src="mp3/Algenib.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Algieba</div><div class="voice-note">Neutral</div><audio controls src="mp3/Algieba.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Umbriel</div><div class="voice-note">Neutral</div><audio controls src="mp3/Umbriel.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Autonoe</div><div class="voice-note">Neutral</div><audio controls src="mp3/Autonoe.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Zephyr</div><div class="voice-note">Airy</div><audio controls src="mp3/Zephyr.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Aoede</div><div class="voice-note">"Warm"</div><audio controls src="mp3/Aoede.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Leda</div><div class="voice-note">Neutral-warm</div><audio controls src="mp3/Leda.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Callirrhoe</div><div class="voice-note">Fastest generation</div><audio controls src="mp3/Callirrhoe.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Despina</div><div class="voice-note">Smooth</div><audio controls src="mp3/Despina.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Erinome</div><div class="voice-note">Neutral</div><audio controls src="mp3/Erinome.mp3"></audio></div>
+<div class="voice"><div class="voice-name">Kore</div><div class="voice-note">"Firm" — reads feminine</div><audio controls src="mp3/Kore.mp3"></audio></div>
+
+<h2>Not available on preview endpoint (13 voices)</h2>
+<p>These names appear in Google's documented catalog but return silent failures on <code>gemini-3.1-flash-tts-preview</code>: Achernar, Achird, Alnilam, Gacrux, Laomedeia, Pulcherrima, Rasalgethi, Sadachbia, Sadaltager, Schedar, Sulafat, Vindemiatrix, Zubenelgenubi.</p>
+
+</body>
+</html>
