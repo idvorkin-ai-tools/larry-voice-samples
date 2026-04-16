@@ -75,20 +75,51 @@ x-goog-api-key: $GOOGLE_API_KEY
 
 <p>Open feature request: <a href="https://github.com/anthropics/anthropic-sdk-python/issues/1198">anthropic-sdk-python #1198</a>, filed Feb 2026, no ETA as of today.</p>
 
-<p>This means <strong>voice-quality judgment has to be done by Igor's ears</strong>, not by Larry. When tuning voice presets or A/B'ing catalog voices, Larry can:</p>
+<p>This means <strong>voice-quality judgment has to be done by Igor's ears</strong>, not by Larry — <em>when the judge has to be Claude.</em> Larry can still:</p>
 <ul>
 <li>Generate candidates via <code>gen-tts</code></li>
 <li>Run them through <code>gen-stt</code> (Parakeet ONNX) to verify transcription fidelity (a proxy for intelligibility, not quality)</li>
 <li>Ship the WAVs to Igor via Telegram for his perceptual call</li>
 </ul>
 
-<p>If perceptual evaluation from an AI is desired, workarounds exist outside the Claude API:</p>
+<h2>Can the model listen to itself? (Gemini-as-critic, 2026-04-16)</h2>
+
+<p><strong>Yes, if you swap providers.</strong> <code>gemini-3.1-pro-preview</code>
+and <code>gemini-3-pro-preview</code> both accept audio input natively on
+<code>generateContent</code> — you pass the WAV inline as
+<code>inlineData</code> with <code>mimeType: "audio/wav"</code>, and the model
+reasons about the audio the same way it does about an image or PDF.
+This closed the loop we've wanted for voice work: <strong>generator
+(<code>gemini-3.1-flash-tts-preview</code>) → critic
+(<code>gemini-3.1-pro-preview</code>) → revised prompt → regenerate.</strong>
+Entirely inside Google's own API.</p>
+
+<p>We tried this on the Soprano preset: render with the current style
+directive, ask Gemini 3.1 Pro to rate 1–10 against the Gandolfini reference
+and propose 3 concrete prompt modifications, append the mods, regenerate.
+Three iterations. Scores went <strong>3 → 3 → 4</strong> — modest gains, limited
+by a naive append-only fusion (the generator ends up obeying an early
+"insert heavy breathing" mod even when a later critic complains the
+breathing became cartoonish). Full write-up, audio samples, and per-iteration
+critic JSON: <a href="soprano-iteration.html">soprano iteration →</a>.</p>
+
+<p>Key findings:</p>
 <ul>
-<li><strong>Gemini 2.x multimodal</strong> accepts audio input natively — good for sentiment, prosody, speaker-ID analysis. Would require a second API call to a different provider.</li>
-<li><strong>Whisper + Claude text analysis</strong> — transcribe audio, then ask Claude to analyze the transcript (loses prosody, good for content).</li>
+<li><strong>Audio token accounting</strong>: ~93 input tokens for the
+3.7 s probe clip (roughly 25 tokens/s, close to the documented 32 tokens/s
+of audio). Critic calls cost $&lt;0.01 total for the 3-iteration run.</li>
+<li><strong>Critique quality is legit</strong>: Gemini 3.1 Pro names specific
+acoustic features ("downward pitch inflection on 'already'", "rattling
+vocal fry", "congested nasal breathing") in sound-engineer vocabulary.
+Its proposed modifications are imperative and actionable, not vibes.</li>
+<li><strong>Provider note</strong>: Gemini 3 Pro Preview was deprecated
+2026-03-09 — use <code>gemini-3.1-pro-preview</code> or fall back to
+<code>gemini-2.5-pro</code> / <code>gemini-2.5-flash</code> (both confirmed
+audio-in on this repo's test probe).</li>
 </ul>
 
-<p>For this catalog: pick by ear, then lock in the voice name in <code>tts-voice.txt</code>.</p>
+<p>For this catalog: Igor's ears are still the final judge, but Gemini
+3.1 Pro can now shortlist before the ear test.</p>
 
 <h2>The <code>gen-tts</code> Python tool</h2>
 

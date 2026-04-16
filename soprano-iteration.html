@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  Soprano iteration experiment: can Gemini listen to its own TTS and critique it?
+  ================================================================================
+  EXPERIMENT: Close a feedback loop where one Gemini model (3.1 Flash TTS) generates
+  speech, and another (3.1 Pro Preview, which accepts audio-in) listens to the
+  output and rates how close it sounds to Tony Soprano.
+  Iterate 3x, appending the critic's concrete prompt-modifications each round.
+
+  RESULT (2026-04-16): naive append-based iteration produced modest gains
+  (3 -> 3 -> 4 / 10). The critic can hear that successive rounds over-correct
+  (e.g. "add heavy breathing" in iter1 then "reduce cartoonish breathing" in
+  iter3). Stacking imperatives without a replace/reconcile step is the limit.
+
+  WHY THIS MATTERS: Claude Opus 4.6 cannot do audio-in (see how-it-works.html).
+  Gemini 3.1 Pro Preview CAN — so we finally have a way to let the AI grade
+  the AI's voice work instead of routing every sample through Igor's ears.
+-->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soprano iteration — can Gemini critique its own voice?</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1rem; color: #222; line-height: 1.55; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: .3rem; }
+  h2 { margin-top: 2.2rem; color: #444; }
+  h3 { margin-top: 1rem; color: #555; font-size: 1.05em; }
+  code { background: #f4f4f4; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
+  pre { background: #f4f4f4; padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; font-size: .82em; white-space: pre-wrap; }
+  .iter { border: 1px solid #ddd; border-radius: 8px; padding: 1.1rem 1.3rem; margin: 1rem 0; background: #fafafa; }
+  .iter h3 { margin-top: 0; }
+  .score { display: inline-block; background: #0969da; color: #fff; font-weight: 700; padding: .15rem .6rem; border-radius: 4px; font-size: .95em; margin-left: .6rem; vertical-align: middle; }
+  .score-low { background: #b02030; }
+  .score-mid { background: #b08020; }
+  .score-high { background: #2f8040; }
+  audio { width: 320px; height: 36px; margin: .5rem 0 1rem 0; }
+  .verdict { font-style: italic; color: #555; border-left: 3px solid #999; padding: .4rem .8rem; margin: .6rem 0; background: #fff; }
+  .missing, .mods { font-size: .92em; }
+  .missing li, .mods li { margin: .2rem 0; }
+  .missing strong, .mods strong { color: #444; }
+  .meta { background: #eef5ff; border-left: 3px solid #0969da; padding: .7rem 1rem; border-radius: 0 4px 4px 0; font-size: .9em; color: #0a3d7a; margin: 1rem 0; }
+  .prompt-box { background: #fffbeb; border: 1px solid #e8d070; border-radius: 6px; padding: .6rem .9rem; font-size: .85em; white-space: pre-wrap; font-family: ui-monospace, monospace; margin: .5rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid #e0e0e0; font-size: .92em; }
+  th { background: #f4f4f4; }
+  td.num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+
+<p><a href="index.html">← Back to voice catalog</a> · <a href="how-it-works.html">How was this generated? →</a></p>
+
+<h1>Soprano iteration — can Gemini critique its own voice?</h1>
+
+<div class="meta">
+  <strong>Experiment (2026-04-16):</strong> close a generator/critic feedback loop
+  entirely inside Google's Gemini family. <strong>Generator:</strong>
+  <code>gemini-3.1-flash-tts-preview</code> (Charon base voice + Soprano style
+  directive). <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> —
+  which, unlike Claude Opus 4.6, accepts audio input natively.
+  <strong>Loop:</strong> render WAV → feed back to critic → critic returns score +
+  3 concrete prompt modifications → append → regenerate. 3 iterations.
+</div>
+
+<h2>Test phrase</h2>
+<blockquote><em>"Igor. Listen to me here. You're thinkin' too much. Just go talk to her already."</em></blockquote>
+
+<h2>Score trajectory</h2>
+<table>
+<tr><th>Iteration</th><th>Score</th><th>Critic's one-line verdict</th></tr>
+<tr>
+  <td>Iter 1 (baseline)</td>
+  <td class="num">3/10</td>
+  <td>"This sounds like a whiny, cartoonish mob henchman rather than the physically imposing, deeply resonant, and heavy-breathing Tony Soprano."</td>
+</tr>
+<tr>
+  <td>Iter 2 (after 3 mods)</td>
+  <td class="num">3/10</td>
+  <td>"The voice is far too light, nasal, and rushed, sounding more like a generic mob caricature than the physically imposing, deep-chested Tony Soprano."</td>
+</tr>
+<tr>
+  <td>Iter 3 (after 6 mods)</td>
+  <td class="num">4/10</td>
+  <td>"The exaggerated breathing and pleading upward inflection on the final line turn Tony into a cartoonish caricature rather than a quiet, menacing boss."</td>
+</tr>
+</table>
+
+<p><strong>Takeaway:</strong> naive append-based iteration produced one
+point of improvement over three rounds. The critic's iter 3 verdict explicitly
+called out <em>over-correction</em> from iter 1's "insert heavy breathing"
+modification — the modification stuck in the prompt and iter 3 produced
+cartoonishly loud breathing, which the critic then penalised. A production
+loop would need a reconcile/replace step, not pure append.</p>
+
+<p>Still — the critic is <em>coherent</em>. It catches specific acoustic
+features (nasal whine, vocal fry, downward vs upward pitch inflection,
+cadence), articulates them in sound-engineering vocabulary, and proposes
+imperatives that can be dropped straight into a style directive. This is
+the thing Claude Opus 4.6 still cannot do at all.</p>
+
+<h2>Iteration 1 — baseline Soprano preset <span class="score score-low">3/10</span></h2>
+
+<div class="iter">
+  <audio controls src="iterations/mp3/soprano-iter1.mp3"></audio>
+  <div class="verdict">"This sounds like a whiny, cartoonish mob henchman rather than the physically imposing, deeply resonant, and heavy-breathing Tony Soprano."</div>
+  <h3>Voice prompt used</h3>
+  <div class="prompt-box">Speak in a raspy North-Jersey Italian-American baritone. Gravelly, like a longtime smoker. Intimate and confidential — the listener is always close enough to feel the breath on the microphone. Short sentences with a shrugged cadence. Shifts between quiet menace, warm avuncular guidance, and exasperated "whaddaya gonna do" resignation — but the default is affectionate. Pauses are beats, not hesitations. Drop the final "-g" in gerunds ("thinkin'", "doin'"). Never shout; power comes from restraint, not volume.</div>
+  <h3>Missing (per critic)</h3>
+  <ul class="missing">
+    <li>Deep chest resonance and physical vocal weight</li>
+    <li>Heavy, congested nasal breathing</li>
+    <li>Downward, authoritative pitch inflection</li>
+  </ul>
+  <h3>Critic's proposed prompt modifications</h3>
+  <ul class="mods">
+    <li>Lower the fundamental pitch to a heavy bass-baritone and push the sound deep into the chest to eliminate any high-pitched, nasal whine.</li>
+    <li>Insert audible, heavy nasal breathing before and after phrases to simulate a large, physically congested man.</li>
+    <li>Elongate the vowels in 'talk' and 'already' while applying a heavy downward pitch inflection to ground the authority.</li>
+  </ul>
+</div>
+
+<h2>Iteration 2 — 3 mods appended <span class="score score-low">3/10</span></h2>
+
+<div class="iter">
+  <audio controls src="iterations/mp3/soprano-iter2.mp3"></audio>
+  <div class="verdict">"The voice is far too light, nasal, and rushed, sounding more like a generic mob caricature than the physically imposing, deep-chested Tony Soprano."</div>
+  <h3>Voice prompt used</h3>
+  <div class="prompt-box">Speak in a raspy North-Jersey Italian-American baritone. Gravelly, like a longtime smoker. Intimate and confidential — the listener is always close enough to feel the breath on the microphone. Short sentences with a shrugged cadence. Shifts between quiet menace, warm avuncular guidance, and exasperated "whaddaya gonna do" resignation — but the default is affectionate. Pauses are beats, not hesitations. Drop the final "-g" in gerunds ("thinkin'", "doin'"). Never shout; power comes from restraint, not volume. Lower the fundamental pitch to a heavy bass-baritone and push the sound deep into the chest to eliminate any high-pitched, nasal whine. Insert audible, heavy nasal breathing before and after phrases to simulate a large, physically congested man. Elongate the vowels in 'talk' and 'already' while applying a heavy downward pitch inflection to ground the authority.</div>
+  <h3>Missing (per critic)</h3>
+  <ul class="missing">
+    <li>deep, resonant chest-voice weight</li>
+    <li>sluggish, physically labored pacing</li>
+    <li>thick, rattling vocal fry on sentence endings</li>
+  </ul>
+  <h3>Critic's proposed prompt modifications</h3>
+  <ul class="mods">
+    <li>Apply a thick, rattling vocal fry to the ends of sentences to simulate vocal cord damage from heavy smoking.</li>
+    <li>Speak with a slightly clenched jaw and a thick tongue to muffle the articulation and darken the overall tone.</li>
+    <li>Drag out the consonant sounds in 'Listen' and 'much' to create a sluggish, lethargic speech rhythm.</li>
+  </ul>
+</div>
+
+<h2>Iteration 3 — 6 mods appended <span class="score score-mid">4/10</span></h2>
+
+<div class="iter">
+  <audio controls src="iterations/mp3/soprano-iter3.mp3"></audio>
+  <div class="verdict">"The exaggerated breathing and pleading upward inflection on the final line turn Tony into a cartoonish caricature rather than a quiet, menacing boss."</div>
+  <h3>Voice prompt used (final, longest)</h3>
+  <div class="prompt-box">Speak in a raspy North-Jersey Italian-American baritone. Gravelly, like a longtime smoker. Intimate and confidential — the listener is always close enough to feel the breath on the microphone. Short sentences with a shrugged cadence. Shifts between quiet menace, warm avuncular guidance, and exasperated "whaddaya gonna do" resignation — but the default is affectionate. Pauses are beats, not hesitations. Drop the final "-g" in gerunds ("thinkin'", "doin'"). Never shout; power comes from restraint, not volume. Lower the fundamental pitch to a heavy bass-baritone and push the sound deep into the chest to eliminate any high-pitched, nasal whine. Insert audible, heavy nasal breathing before and after phrases to simulate a large, physically congested man. Elongate the vowels in 'talk' and 'already' while applying a heavy downward pitch inflection to ground the authority. Apply a thick, rattling vocal fry to the ends of sentences to simulate vocal cord damage from heavy smoking. Speak with a slightly clenched jaw and a thick tongue to muffle the articulation and darken the overall tone. Drag out the consonant sounds in 'Listen' and 'much' to create a sluggish, lethargic speech rhythm.</div>
+  <h3>Missing (per critic)</h3>
+  <ul class="missing">
+    <li>Subtle, natural breathing (current is cartoonishly loud and theatrical)</li>
+    <li>Flat, dismissive authority on the final sentence (currently sounds pleading)</li>
+    <li>Seamless integration of vocal fry (currently sounds disjointed and artificial)</li>
+  </ul>
+  <h3>Critic's proposed prompt modifications (not applied — loop ended)</h3>
+  <ul class="mods">
+    <li>Reduce the volume and duration of the breathing sounds so they are subtle, ambient nose-breaths rather than loud, theatrical sighs.</li>
+    <li>Deliver the final sentence 'Just go talk to her already' with a rapid, flat cadence and a hard downward pitch drop at the end to sound dismissive, not pleading.</li>
+    <li>Blend the vocal fry smoothly into the center of the vowels rather than isolating it at the ends of sentences, keeping the mid-tones warm.</li>
+  </ul>
+</div>
+
+<h2>Observations</h2>
+
+<ul>
+<li><strong>Gemini 3.1 Pro is a competent voice critic.</strong> Its critiques
+are acoustically specific ("elongate the vowel in 'talk'", "downward pitch
+drop at the end to sound dismissive") rather than vibes.</li>
+<li><strong>Gemini 3.1 Flash TTS is a competent but conservative generator.</strong>
+It applies pitch/rate/cadence instructions audibly, but doesn't fully
+transform timbre. Charon stays recognizable as Charon across all 3 iterations.</li>
+<li><strong>Pure append is the wrong fusion strategy.</strong> By iter 3 the
+prompt contained both "insert audible heavy nasal breathing" (iter 1) and
+— by iter 3's critique — needed "reduce breathing to subtle ambient
+nose-breaths". The generator obeyed iter 1, and iter 3's critic penalised
+the result. A real loop needs diff-then-reconcile: identify which prior
+mod caused the regression and replace it rather than layering on top.</li>
+<li><strong>Ceiling ≈ 4–5/10 without voice cloning.</strong> The critic's
+iter-3 verdict implicitly acknowledges that Charon's native timbre isn't
+Gandolfini's. To crack 7/10 we'd need either (a) speaker-cloning
+(restricted / risky) or (b) a base voice with more chest resonance than
+Charon.</li>
+</ul>
+
+<h2>Cost &amp; rate-limit notes</h2>
+<p>Each critic call used ≈ 100 input tokens (audio-modality) plus a few
+hundred output tokens. At Gemini 3.1 Pro Preview's published audio-input
+pricing of $2.00 / 1M tokens (≤ 200k prompt tier), three iterations cost
+&lt;&lt; $0.01 in critic spend. Generator spend (3 × ~4-8 s of audio) was
+roughly $0.05–0.10 at Flash TTS rates. Critic was far cheaper than the
+generator — inverting the usual "inference is cheap, analysis is expensive" intuition.</p>
+
+<p>No parallelism used; calls were serialized to stay well under any
+preview-tier rpm cap.</p>
+
+<hr>
+<p style="color:#888; font-size:.85em;">Generated 2026-04-16 · Loop source: <code>/tmp/larry-soprano-iter/iterate.py</code> · <a href="index.html">← voice catalog</a> · <a href="how-it-works.html">how-it-works →</a></p>
+
+</body>
+</html>
