@@ -1,21 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <!--
-  Soprano iteration experiment: can Gemini listen to its own TTS and critique it?
-  ================================================================================
-  EXPERIMENT: Close a feedback loop where one Gemini model (3.1 Flash TTS) generates
-  speech, and another (3.1 Pro Preview, which accepts audio-in) listens to the
-  output and rates how close it sounds to Tony Soprano.
-  Iterate 3x, appending the critic's concrete prompt-modifications each round.
+  Soprano iteration experiment — can Gemini critique its own voice?
+  =================================================================
+  Close the loop: Gemini 3.1 Flash TTS generates → Gemini 3.1 Pro Preview
+  listens + critiques → use the critique to rewrite the prompt → regenerate.
+  v1 was naive-append (plateaued at 4/10). v2 added base-voice sweep, a
+  dimensional scorecard, tournament rounds, and a regression guard — got to
+  6/10. Ceiling without speaker cloning ≈ 6/10.
 
-  RESULT (2026-04-16): naive append-based iteration produced modest gains
-  (3 -> 3 -> 4 / 10). The critic can hear that successive rounds over-correct
-  (e.g. "add heavy breathing" in iter1 then "reduce cartoonish breathing" in
-  iter3). Stacking imperatives without a replace/reconcile step is the limit.
-
-  WHY THIS MATTERS: Claude Opus 4.6 cannot do audio-in (see how-it-works.html).
-  Gemini 3.1 Pro Preview CAN — so we finally have a way to let the AI grade
-  the AI's voice work instead of routing every sample through Igor's ears.
+  LAYOUT: winner-first. Main page gets the final clip + combined score
+  trajectory + key findings. v1 and v2 deep-dives live in collapsed
+  <details> blocks below, for readers who want the mechanics.
 -->
 <head>
 <meta charset="UTF-8">
@@ -25,228 +21,95 @@
   body { font-family: -apple-system, system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1rem; color: #222; line-height: 1.55; }
   h1 { border-bottom: 2px solid #333; padding-bottom: .3rem; }
   h2 { margin-top: 2.2rem; color: #444; }
-  h3 { margin-top: 1rem; color: #555; font-size: 1.05em; }
+  h3 { margin-top: 1rem; color: #555; font-size: 1.02em; }
   code { background: #f4f4f4; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
-  pre { background: #f4f4f4; padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; font-size: .82em; white-space: pre-wrap; }
-  .iter { border: 1px solid #ddd; border-radius: 8px; padding: 1.1rem 1.3rem; margin: 1rem 0; background: #fafafa; }
-  .iter h3 { margin-top: 0; }
-  .score { display: inline-block; background: #0969da; color: #fff; font-weight: 700; padding: .15rem .6rem; border-radius: 4px; font-size: .95em; margin-left: .6rem; vertical-align: middle; }
+  .winner { background: #eaf8ec; border: 2px solid #2f8040; border-radius: 10px; padding: 1.2rem 1.4rem; margin: 1.5rem 0; }
+  .winner h2 { margin-top: 0; color: #1d5d2c; border-bottom: none; }
+  .winner .score-big { font-size: 2rem; font-weight: 800; color: #2f8040; }
+  .winner audio { width: 360px; height: 38px; margin: .8rem 0; }
+  .prompt-box { background: #fffbeb; border: 1px solid #e8d070; border-radius: 6px; padding: .6rem .9rem; font-size: .85em; white-space: pre-wrap; font-family: ui-monospace, monospace; margin: .5rem 0; }
+  audio { width: 320px; height: 36px; margin: .3rem 0; }
+  .score { display: inline-block; font-weight: 700; padding: .1rem .45rem; border-radius: 4px; font-size: .85em; color: #fff; }
   .score-low { background: #b02030; }
   .score-mid { background: #b08020; }
   .score-high { background: #2f8040; }
-  audio { width: 320px; height: 36px; margin: .5rem 0 1rem 0; }
-  .verdict { font-style: italic; color: #555; border-left: 3px solid #999; padding: .4rem .8rem; margin: .6rem 0; background: #fff; }
-  .missing, .mods { font-size: .92em; }
-  .missing li, .mods li { margin: .2rem 0; }
-  .missing strong, .mods strong { color: #444; }
-  .meta { background: #eef5ff; border-left: 3px solid #0969da; padding: .7rem 1rem; border-radius: 0 4px 4px 0; font-size: .9em; color: #0a3d7a; margin: 1rem 0; }
-  .prompt-box { background: #fffbeb; border: 1px solid #e8d070; border-radius: 6px; padding: .6rem .9rem; font-size: .85em; white-space: pre-wrap; font-family: ui-monospace, monospace; margin: .5rem 0; }
-  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-  th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid #e0e0e0; font-size: .92em; }
-  th { background: #f4f4f4; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9em; }
+  th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+  th { background: #f4f4f4; font-weight: 600; }
   td.num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+  tr.winner-row { background: #eaf8ec; }
+  tr.phase-v1 td:first-child, tr.phase-v2 td:first-child { font-weight: 600; }
+  tr.phase-v1 { background: #fcf5f5; }
+  tr.phase-v2 { background: #f5faff; }
+  details { margin: 1.2rem 0; padding: .7rem 1.1rem; background: #fafafa; border: 1px solid #e4e4e4; border-radius: 8px; }
+  details > summary { cursor: pointer; font-weight: 700; color: #333; padding: .3rem 0; font-size: 1.02em; }
+  details[open] { background: #fff; }
+  details[open] > summary { margin-bottom: .5rem; }
+  .iter { border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.2rem; margin: .8rem 0; background: #fafafa; }
+  .iter h4 { margin: .4rem 0 .3rem 0; color: #555; font-size: .95em; }
+  .verdict { font-style: italic; color: #555; border-left: 3px solid #999; padding: .3rem .8rem; margin: .5rem 0; background: #fff; font-size: .92em; }
+  .findings li { margin: .5rem 0; }
+  .meta { background: #eef5ff; border-left: 3px solid #0969da; padding: .6rem 1rem; border-radius: 0 4px 4px 0; font-size: .88em; color: #0a3d7a; margin: 1rem 0; }
   a { color: #0969da; }
+  a.subtle { color: #666; font-size: .85em; }
+  .nav { margin: 0 0 1rem 0; font-size: .9em; color: #777; }
+  .nav a { margin-right: 1rem; }
 </style>
 </head>
 <body>
 
-<p><a href="index.html">← Back to voice catalog</a> · <a href="how-it-works.html">How was this generated? →</a></p>
+<p class="nav"><a href="index.html">← Voice catalog</a> <a href="how-it-works.html">How was this generated? →</a></p>
 
 <h1>Soprano iteration — can Gemini critique its own voice?</h1>
 
-<div class="meta">
-  <strong>Experiment (2026-04-16):</strong> close a generator/critic feedback loop
-  entirely inside Google's Gemini family. <strong>Generator:</strong>
-  <code>gemini-3.1-flash-tts-preview</code> (Charon base voice + Soprano style
-  directive). <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> —
-  which, unlike Claude Opus 4.6, accepts audio input natively.
-  <strong>Loop:</strong> render WAV → feed back to critic → critic returns score +
-  3 concrete prompt modifications → append → regenerate. 3 iterations.
+<p><strong>Experiment</strong> (2026-04-16): close the loop entirely inside Google's Gemini family. <strong>Generator:</strong> <code>gemini-3.1-flash-tts-preview</code>. <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> — which, unlike Claude Opus 4.6, accepts audio input natively. Render → feed back to critic → critic scores + proposes prompt mods → regenerate. <strong>Target:</strong> James Gandolfini as Tony Soprano.</p>
+
+<!-- Winner box — the main takeaway goes at the top, not the bottom. -->
+<div class="winner">
+<h2>🏆 Winner — v2 final</h2>
+<p><span class="score-big">6/10</span> &nbsp; <strong>Enceladus</strong> base voice + tournament-tuned 6-slot prompt</p>
+<audio controls src="iterations/v2/final.mp3"></audio>
+<p style="font-style:italic; color:#555; margin:.3rem 0;">"Pacing and heavy breathing are spot-on, but the timbre lacks the deep chest resonance and forward nasal placement needed to fully sell the illusion." — Gemini 3.1 Pro, final critic verdict</p>
+<details>
+  <summary>View winning prompt (structured — 6 slots)</summary>
+  <div class="prompt-box">Speak from deep in the chest with a heavy bass-baritone resonance, as if the voice is anchored in the sternum rather than the head. Introduce heavy sinus congestion and audible, labored nasal breathing between phrases to simulate years of heavy smoking and physical weight. Short sentences with a shrugged, unhurried cadence. Pauses are deliberate beats, not hesitations. Slightly lethargic, never rushed. Anchor the pitch in a low, authoritative baritone register, eliminating any upward lilt to maintain a flat, quietly menacing presence. Blend subtle, sustained vocal fry into the mid-vowels, not isolated rattles at sentence endings. Channel James Gandolfini as Tony Soprano in an intimate indoor scene — North-Jersey Italian-American, affectionate default, quiet menace underneath. Drop the final '-g' in gerunds (thinkin', doin'). Never shout.</div>
+</details>
 </div>
 
-<h2>Test phrase</h2>
-<blockquote><em>"Igor. Listen to me here. You're thinkin' too much. Just go talk to her already."</em></blockquote>
+<h2>Combined score trajectory — v1 → v2</h2>
 
-<h2>Score trajectory</h2>
 <table>
-<tr><th>Iteration</th><th>Score</th><th>Critic's one-line verdict</th></tr>
-<tr>
-  <td>Iter 1 (baseline)</td>
-  <td class="num">3/10</td>
-  <td>"This sounds like a whiny, cartoonish mob henchman rather than the physically imposing, deeply resonant, and heavy-breathing Tony Soprano."</td>
-</tr>
-<tr>
-  <td>Iter 2 (after 3 mods)</td>
-  <td class="num">3/10</td>
-  <td>"The voice is far too light, nasal, and rushed, sounding more like a generic mob caricature than the physically imposing, deep-chested Tony Soprano."</td>
-</tr>
-<tr>
-  <td>Iter 3 (after 6 mods)</td>
-  <td class="num">4/10</td>
-  <td>"The exaggerated breathing and pleading upward inflection on the final line turn Tony into a cartoonish caricature rather than a quiet, menacing boss."</td>
-</tr>
+<tr><th>Phase</th><th>Voice</th><th>Overall</th><th>What changed</th><th>Critic verdict (abbreviated)</th></tr>
+<tr class="phase-v1"><td>v1 iter 1</td><td>Charon</td><td class="num"><span class="score score-low">3</span></td><td>Baseline Soprano preset (lock-in)</td><td>"Whiny, cartoonish mob henchman."</td></tr>
+<tr class="phase-v1"><td>v1 iter 2</td><td>Charon</td><td class="num"><span class="score score-low">3</span></td><td>+3 mods appended</td><td>"Too light, nasal, rushed."</td></tr>
+<tr class="phase-v1"><td>v1 iter 3</td><td>Charon</td><td class="num"><span class="score score-low">4</span></td><td>+3 more mods (6 total, monotonic append)</td><td>"Cartoonish caricature, pleading inflection."</td></tr>
+<tr style="background:#f0f0f0;"><td colspan="5" style="text-align:center; font-size:.85em; color:#666;"><em>v2 redesign — base-voice sweep + dimensional scorecard + tournament + regression guard</em></td></tr>
+<tr class="phase-v2"><td>v2 sweep</td><td><strong>Enceladus</strong></td><td class="num"><span class="score score-mid">5</span></td><td>Untouched seed prompt, new base voice</td><td>"Chest resonance + pitch authority out of the box."</td></tr>
+<tr class="phase-v2"><td>v2 R1</td><td>Enceladus</td><td class="num"><span class="score score-mid">5</span></td><td>NASAL_QUALITY slot replaced</td><td>"Pacing lifted, chest still thin."</td></tr>
+<tr class="winner-row"><td>v2 R2 (final)</td><td><strong>Enceladus</strong></td><td class="num"><span class="score score-high">6</span></td><td>PITCH slot replaced — "flat authoritative baritone, no upward lilt"</td><td>"Pacing + breathing spot-on; timbre still missing chest."</td></tr>
+<tr class="phase-v2"><td>v2 R3</td><td>Enceladus</td><td class="num"><span class="score score-mid">6</span></td><td>CHEST_RESONANCE mutation → tied but pitch regressed; <strong>regression guard fired</strong>, reverted</td><td>Two flat rounds → early stop.</td></tr>
 </table>
 
-<p><strong>Takeaway:</strong> naive append-based iteration produced one
-point of improvement over three rounds. The critic's iter 3 verdict explicitly
-called out <em>over-correction</em> from iter 1's "insert heavy breathing"
-modification — the modification stuck in the prompt and iter 3 produced
-cartoonishly loud breathing, which the critic then penalised. A production
-loop would need a reconcile/replace step, not pure append.</p>
+<p><strong>Net gain: +2 overall</strong> (v1 final 4 → v2 final 6). Most of it came from the base-voice swap before any prompt tuning.</p>
 
-<p>Still — the critic is <em>coherent</em>. It catches specific acoustic
-features (nasal whine, vocal fry, downward vs upward pitch inflection,
-cadence), articulates them in sound-engineering vocabulary, and proposes
-imperatives that can be dropped straight into a style directive. This is
-the thing Claude Opus 4.6 still cannot do at all.</p>
-
-<h2>Iteration 1 — baseline Soprano preset <span class="score score-low">3/10</span></h2>
-
-<div class="iter">
-  <audio controls src="iterations/mp3/soprano-iter1.mp3"></audio>
-  <div class="verdict">"This sounds like a whiny, cartoonish mob henchman rather than the physically imposing, deeply resonant, and heavy-breathing Tony Soprano."</div>
-  <h3>Voice prompt used</h3>
-  <div class="prompt-box">Speak in a raspy North-Jersey Italian-American baritone. Gravelly, like a longtime smoker. Intimate and confidential — the listener is always close enough to feel the breath on the microphone. Short sentences with a shrugged cadence. Shifts between quiet menace, warm avuncular guidance, and exasperated "whaddaya gonna do" resignation — but the default is affectionate. Pauses are beats, not hesitations. Drop the final "-g" in gerunds ("thinkin'", "doin'"). Never shout; power comes from restraint, not volume.</div>
-  <h3>Missing (per critic)</h3>
-  <ul class="missing">
-    <li>Deep chest resonance and physical vocal weight</li>
-    <li>Heavy, congested nasal breathing</li>
-    <li>Downward, authoritative pitch inflection</li>
-  </ul>
-  <h3>Critic's proposed prompt modifications</h3>
-  <ul class="mods">
-    <li>Lower the fundamental pitch to a heavy bass-baritone and push the sound deep into the chest to eliminate any high-pitched, nasal whine.</li>
-    <li>Insert audible, heavy nasal breathing before and after phrases to simulate a large, physically congested man.</li>
-    <li>Elongate the vowels in 'talk' and 'already' while applying a heavy downward pitch inflection to ground the authority.</li>
-  </ul>
-</div>
-
-<h2>Iteration 2 — 3 mods appended <span class="score score-low">3/10</span></h2>
-
-<div class="iter">
-  <audio controls src="iterations/mp3/soprano-iter2.mp3"></audio>
-  <div class="verdict">"The voice is far too light, nasal, and rushed, sounding more like a generic mob caricature than the physically imposing, deep-chested Tony Soprano."</div>
-  <h3>Voice prompt used</h3>
-  <div class="prompt-box">Speak in a raspy North-Jersey Italian-American baritone. Gravelly, like a longtime smoker. Intimate and confidential — the listener is always close enough to feel the breath on the microphone. Short sentences with a shrugged cadence. Shifts between quiet menace, warm avuncular guidance, and exasperated "whaddaya gonna do" resignation — but the default is affectionate. Pauses are beats, not hesitations. Drop the final "-g" in gerunds ("thinkin'", "doin'"). Never shout; power comes from restraint, not volume. Lower the fundamental pitch to a heavy bass-baritone and push the sound deep into the chest to eliminate any high-pitched, nasal whine. Insert audible, heavy nasal breathing before and after phrases to simulate a large, physically congested man. Elongate the vowels in 'talk' and 'already' while applying a heavy downward pitch inflection to ground the authority.</div>
-  <h3>Missing (per critic)</h3>
-  <ul class="missing">
-    <li>deep, resonant chest-voice weight</li>
-    <li>sluggish, physically labored pacing</li>
-    <li>thick, rattling vocal fry on sentence endings</li>
-  </ul>
-  <h3>Critic's proposed prompt modifications</h3>
-  <ul class="mods">
-    <li>Apply a thick, rattling vocal fry to the ends of sentences to simulate vocal cord damage from heavy smoking.</li>
-    <li>Speak with a slightly clenched jaw and a thick tongue to muffle the articulation and darken the overall tone.</li>
-    <li>Drag out the consonant sounds in 'Listen' and 'much' to create a sluggish, lethargic speech rhythm.</li>
-  </ul>
-</div>
-
-<h2>Iteration 3 — 6 mods appended <span class="score score-mid">4/10</span></h2>
-
-<div class="iter">
-  <audio controls src="iterations/mp3/soprano-iter3.mp3"></audio>
-  <div class="verdict">"The exaggerated breathing and pleading upward inflection on the final line turn Tony into a cartoonish caricature rather than a quiet, menacing boss."</div>
-  <h3>Voice prompt used (final, longest)</h3>
-  <div class="prompt-box">Speak in a raspy North-Jersey Italian-American baritone. Gravelly, like a longtime smoker. Intimate and confidential — the listener is always close enough to feel the breath on the microphone. Short sentences with a shrugged cadence. Shifts between quiet menace, warm avuncular guidance, and exasperated "whaddaya gonna do" resignation — but the default is affectionate. Pauses are beats, not hesitations. Drop the final "-g" in gerunds ("thinkin'", "doin'"). Never shout; power comes from restraint, not volume. Lower the fundamental pitch to a heavy bass-baritone and push the sound deep into the chest to eliminate any high-pitched, nasal whine. Insert audible, heavy nasal breathing before and after phrases to simulate a large, physically congested man. Elongate the vowels in 'talk' and 'already' while applying a heavy downward pitch inflection to ground the authority. Apply a thick, rattling vocal fry to the ends of sentences to simulate vocal cord damage from heavy smoking. Speak with a slightly clenched jaw and a thick tongue to muffle the articulation and darken the overall tone. Drag out the consonant sounds in 'Listen' and 'much' to create a sluggish, lethargic speech rhythm.</div>
-  <h3>Missing (per critic)</h3>
-  <ul class="missing">
-    <li>Subtle, natural breathing (current is cartoonishly loud and theatrical)</li>
-    <li>Flat, dismissive authority on the final sentence (currently sounds pleading)</li>
-    <li>Seamless integration of vocal fry (currently sounds disjointed and artificial)</li>
-  </ul>
-  <h3>Critic's proposed prompt modifications (not applied — loop ended)</h3>
-  <ul class="mods">
-    <li>Reduce the volume and duration of the breathing sounds so they are subtle, ambient nose-breaths rather than loud, theatrical sighs.</li>
-    <li>Deliver the final sentence 'Just go talk to her already' with a rapid, flat cadence and a hard downward pitch drop at the end to sound dismissive, not pleading.</li>
-    <li>Blend the vocal fry smoothly into the center of the vowels rather than isolating it at the ends of sentences, keeping the mid-tones warm.</li>
-  </ul>
-</div>
-
-<h2>Observations</h2>
-
-<ul>
-<li><strong>Gemini 3.1 Pro is a competent voice critic.</strong> Its critiques
-are acoustically specific ("elongate the vowel in 'talk'", "downward pitch
-drop at the end to sound dismissive") rather than vibes.</li>
-<li><strong>Gemini 3.1 Flash TTS is a competent but conservative generator.</strong>
-It applies pitch/rate/cadence instructions audibly, but doesn't fully
-transform timbre. Charon stays recognizable as Charon across all 3 iterations.</li>
-<li><strong>Pure append is the wrong fusion strategy.</strong> By iter 3 the
-prompt contained both "insert audible heavy nasal breathing" (iter 1) and
-— by iter 3's critique — needed "reduce breathing to subtle ambient
-nose-breaths". The generator obeyed iter 1, and iter 3's critic penalised
-the result. A real loop needs diff-then-reconcile: identify which prior
-mod caused the regression and replace it rather than layering on top.</li>
-<li><strong>Ceiling ≈ 4–5/10 without voice cloning.</strong> The critic's
-iter-3 verdict implicitly acknowledges that Charon's native timbre isn't
-Gandolfini's. To crack 7/10 we'd need either (a) speaker-cloning
-(restricted / risky) or (b) a base voice with more chest resonance than
-Charon.</li>
+<h2>Key findings</h2>
+<ul class="findings">
+<li><strong>Base-voice choice dominates prompt tuning.</strong> Charon's specific deficits (vocal_fry=2, nasal=3) are timbre characteristics no style directive could fully mask. Enceladus shipped with nearly twice the chest resonance and pitch authority out of the box. Raw Enceladus (5/10) already beat tuned Charon (4/10). <strong>Lesson: optimize the substrate before the directive.</strong></li>
+<li><strong>Naive append is the wrong fusion strategy.</strong> v1 iter-3's critic penalized "cartoonishly loud breathing" that came from iter-1's "insert heavy breathing" directive — which was still in the prompt. Real loops need diff-then-reconcile: replace a slot's content, don't just stack imperatives.</li>
+<li><strong>The regression guard matters.</strong> v2 R3/C1 hit overall=6 by gaining nasal/fry at the cost of pitch_authority (6→4). The strict-anchor check against the Enceladus baseline caught it and reverted. In v1's naive loop that candidate would have been adopted and the character's "quiet menace" authority would have collapsed.</li>
+<li><strong>Gemini 3.1 Pro is a competent voice critic.</strong> Critiques are acoustically specific ("elongate the vowel in 'talk'", "downward pitch drop to sound dismissive", "forward formant placement") rather than vibes. Directives drop straight into a style prompt. <em>This is the capability Claude Opus 4.6 still cannot do.</em></li>
+<li><strong>Ceiling ≈ 6/10 without speaker cloning.</strong> Cracking 8/10+ probably needs (a) a base voice with more sub-bass than Enceladus, (b) multi-slot tournament candidates (escape coupling traps), or (c) speaker-cloning on a Gandolfini reference — flagged out-of-scope for safety + licensing.</li>
 </ul>
 
-<h2>Cost &amp; rate-limit notes</h2>
-<p>Each critic call used ≈ 100 input tokens (audio-modality) plus a few
-hundred output tokens. At Gemini 3.1 Pro Preview's published audio-input
-pricing of $2.00 / 1M tokens (≤ 200k prompt tier), three iterations cost
-&lt;&lt; $0.01 in critic spend. Generator spend (3 × ~4-8 s of audio) was
-roughly $0.05–0.10 at Flash TTS rates. Critic was far cheaper than the
-generator — inverting the usual "inference is cheap, analysis is expensive" intuition.</p>
+<h2>Cost</h2>
+<p>Total end-to-end ≈ <strong>$0.20</strong> across both loops. v1: ~$0.10 (3 TTS + 3 critic). v2: ~$0.20 (17 TTS + 17 critic + 1 final render, budget was $0.50). Critic calls are ~$0.001 each; generator dominates spend by ~10×. Wall-clock ~15 min per loop at 7s inter-call pacing to respect the 10 rpm rate limit.</p>
 
-<p>No parallelism used; calls were serialized to stay well under any
-preview-tier rpm cap.</p>
+<!-- v2 deep dive — for readers who want the mechanics -->
+<details>
+<summary>v2 deep-dive — base-voice sweep, tournament rounds, scorecard (click to expand)</summary>
 
-<hr>
-
-<h1 style="margin-top:3rem; border-bottom:2px solid #333;">v2 — Tournament-style loop with dimensional scorecard</h1>
-
-<div class="meta">
-  <strong>Experiment v2 (2026-04-16):</strong> v1 plateaued at 4/10. The
-  redesign addresses five specific defects: (1) base-voice sweep before
-  prompt tuning instead of locking on Charon; (2) dimensional scorecard
-  (six dimensions, 0-10 each) instead of a single overall score;
-  (3) structured prompt with six named slots and slot-targeted replacement
-  instead of monotonic append; (4) tournament-style round with three
-  candidates ranked by the critic; (5) regression guard that reverts a
-  slot change if any strength dimension drops by more than 1 from the
-  Enceladus baseline. Budget: ~20 TTS + ~20 critic calls, early-stop on
-  two flat rounds.
-</div>
-
-<h2>Result headline</h2>
-<table>
-<tr><th>Iteration</th><th>Voice</th><th>Overall</th><th>One-line verdict</th></tr>
-<tr>
-  <td>v1 final</td>
-  <td>Charon</td>
-  <td class="num">4/10</td>
-  <td>"Exaggerated breathing and pleading upward inflection turn Tony into a cartoonish caricature."</td>
-</tr>
-<tr>
-  <td>v2 final</td>
-  <td><strong>Enceladus</strong></td>
-  <td class="num" style="font-weight:800;">6/10</td>
-  <td>"Pacing and heavy breathing are spot-on, but the timbre lacks the deep chest resonance and forward nasal placement needed to fully sell the illusion."</td>
-</tr>
-</table>
-
-<h2>Final v2 clip <span class="score score-mid">6/10</span></h2>
-<div class="iter">
-  <audio controls src="iterations/v2/final.mp3"></audio>
-  <h3>Final per-dimension scorecard</h3>
-  <table>
-  <tr><th>chest</th><th>nasal</th><th>pacing</th><th>pitch</th><th>fry</th><th>overall</th></tr>
-  <tr><td class="num">5</td><td class="num">6</td><td class="num">8</td><td class="num">6</td><td class="num">7</td><td class="num" style="font-weight:800;">6</td></tr>
-  </table>
-  <h3>Final prompt (structured — six slots)</h3>
-  <div class="prompt-box">Speak from deep in the chest with a heavy bass-baritone resonance, as if the voice is anchored in the sternum rather than the head. Introduce heavy sinus congestion and audible, labored nasal breathing between phrases to simulate years of heavy smoking and physical weight. Short sentences with a shrugged, unhurried cadence. Pauses are deliberate beats, not hesitations. Slightly lethargic, never rushed. Anchor the pitch in a low, authoritative baritone register, eliminating any upward lilt to maintain a flat, quietly menacing presence. Blend subtle, sustained vocal fry into the mid-vowels, not isolated rattles at sentence endings. Channel James Gandolfini as Tony Soprano in an intimate indoor scene — North-Jersey Italian-American, affectionate default, quiet menace underneath. Drop the final '-g' in gerunds (thinkin', doin'). Never shout.</div>
-  <p style="font-size:.9em;color:#555;"><strong>Delta from v1 baseline:</strong> (a) Charon → Enceladus, (b) NASAL_QUALITY slot now names "heavy sinus congestion + labored nasal breathing" explicitly, (c) PITCH slot says "anchor in a low baritone register, flat + quietly menacing" (replaced the v1-era "downward inflection authority" slot that was producing pleading intonation).</p>
-</div>
-
-<h2>Phase 1: base-voice sweep</h2>
-<p>All five male-coded voices were rendered with an identical seed prompt.
-The critic scored each on the same dimensional scorecard. Winner advances
-to the tournament phase.</p>
+<h3>Base-voice sweep</h3>
+<p>All five male-coded voices were rendered with an identical seed prompt. Critic scored each on the same dimensional scorecard. Winner advances.</p>
 
 <table>
 <tr><th>Voice</th><th>chest</th><th>nasal</th><th>pacing</th><th>pitch</th><th>fry</th><th>overall</th><th>Listen</th></tr>
@@ -254,83 +117,64 @@ to the tournament phase.</p>
 <tr><td>Fenrir</td><td class="num">2</td><td class="num">4</td><td class="num">5</td><td class="num">2</td><td class="num">3</td><td class="num">3</td><td><audio controls src="Fenrir.wav" style="width:220px;"></audio></td></tr>
 <tr><td>Orus</td><td class="num">3</td><td class="num">4</td><td class="num">5</td><td class="num">3</td><td class="num">2</td><td class="num">3</td><td><audio controls src="Orus.wav" style="width:220px;"></audio></td></tr>
 <tr><td>Puck</td><td class="num">4</td><td class="num">4</td><td class="num">6</td><td class="num">4</td><td class="num">3</td><td class="num">4</td><td><audio controls src="Puck.wav" style="width:220px;"></audio></td></tr>
-<tr style="background:#e8f5e8;"><td><strong>Enceladus ← winner</strong></td><td class="num"><strong>6</strong></td><td class="num">4</td><td class="num">5</td><td class="num"><strong>6</strong></td><td class="num">5</td><td class="num"><strong>5</strong></td><td><audio controls src="Enceladus.wav" style="width:220px;"></audio></td></tr>
+<tr class="winner-row"><td><strong>Enceladus ← winner</strong></td><td class="num"><strong>6</strong></td><td class="num">4</td><td class="num">5</td><td class="num"><strong>6</strong></td><td class="num">5</td><td class="num"><strong>5</strong></td><td><audio controls src="Enceladus.wav" style="width:220px;"></audio></td></tr>
 </table>
 
-<p><strong>Key finding:</strong> base-voice choice is the single biggest
-lever. Enceladus at 5/10 with zero prompt tuning already exceeded v1's
-final Charon-on-tuned-prompt at 4/10. Charon's specific deficits
-(vocal_fry=2, nasal=3) are timbre characteristics of the base voice that
-style directives could only partially mask. Enceladus shipped with
-near-twice the chest_resonance and pitch_authority out of the box.</p>
-
-<h2>Tournament rounds</h2>
-<p>Each round targets the three lowest-scoring dimensions with three
-candidates, each mutating a single slot with the critic's
-slot-specific directive. Winner carries forward; losers dropped.</p>
+<h3>Tournament rounds</h3>
+<p>Each round targets the three lowest-scoring dimensions with three candidates, each mutating a single slot with the critic's slot-specific directive. Winner carries forward; losers dropped. Regression guard reverts any slot change that drops a strength dimension &gt;1 from the Enceladus baseline.</p>
 
 <table>
 <tr><th>Round</th><th>Candidate</th><th>Mutated slot</th><th>chest</th><th>nasal</th><th>pacing</th><th>pitch</th><th>fry</th><th>overall</th><th>Disposition</th></tr>
-<tr><td>R0 (Enceladus baseline)</td><td>—</td><td>—</td><td class="num">6</td><td class="num">4</td><td class="num">5</td><td class="num">6</td><td class="num">5</td><td class="num">5</td><td>seed</td></tr>
+<tr><td>R0</td><td>seed</td><td>—</td><td class="num">6</td><td class="num">4</td><td class="num">5</td><td class="num">6</td><td class="num">5</td><td class="num">5</td><td>Enceladus baseline</td></tr>
 <tr><td>R1</td><td>C1</td><td>NASAL_QUALITY</td><td class="num">4</td><td class="num">5</td><td class="num">7</td><td class="num">4</td><td class="num">5</td><td class="num">5</td><td><strong>accept</strong></td></tr>
 <tr><td>R1</td><td>C2</td><td>PACING</td><td class="num">5</td><td class="num">4</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td>reject</td></tr>
 <tr><td>R1</td><td>C3</td><td>FRY</td><td class="num">4</td><td class="num">4</td><td class="num">6</td><td class="num">4</td><td class="num">3</td><td class="num">4</td><td>reject</td></tr>
-<tr><td>R2</td><td>C1</td><td>CHEST_RESONANCE</td><td class="num">7</td><td class="num">5</td><td class="num">4</td><td class="num">6</td><td class="num">5</td><td class="num">5</td><td>reject</td></tr>
-<tr style="background:#e8f5e8;"><td>R2</td><td>C2</td><td>PITCH</td><td class="num">5</td><td class="num">6</td><td class="num"><strong>8</strong></td><td class="num"><strong>6</strong></td><td class="num"><strong>7</strong></td><td class="num"><strong>6</strong></td><td><strong>accept ← final</strong></td></tr>
+<tr><td>R2</td><td>C1</td><td>CHEST_RESONANCE</td><td class="num">7</td><td class="num">5</td><td class="num">4</td><td class="num">6</td><td class="num">5</td><td class="num">5</td><td>reject (pacing collapsed)</td></tr>
+<tr class="winner-row"><td>R2</td><td>C2</td><td>PITCH</td><td class="num">5</td><td class="num">6</td><td class="num"><strong>8</strong></td><td class="num"><strong>6</strong></td><td class="num"><strong>7</strong></td><td class="num"><strong>6</strong></td><td><strong>accept ← final</strong></td></tr>
 <tr><td>R2</td><td>C3</td><td>FRY</td><td class="num">4</td><td class="num">5</td><td class="num">6</td><td class="num">4</td><td class="num">6</td><td class="num">4</td><td>reject</td></tr>
-<tr><td>R3</td><td>C1</td><td>CHEST_RESONANCE</td><td class="num">5</td><td class="num">6</td><td class="num">8</td><td class="num">4</td><td class="num">7</td><td class="num">6</td><td>tied overall, but pitch regressed 2 → <strong>revert-guard fired</strong></td></tr>
+<tr><td>R3</td><td>C1</td><td>CHEST_RESONANCE</td><td class="num">5</td><td class="num">6</td><td class="num">8</td><td class="num">4</td><td class="num">7</td><td class="num">6</td><td>tied but pitch -2; <strong>revert-guard fired</strong></td></tr>
 <tr><td>R3</td><td>C2</td><td>NASAL_QUALITY</td><td class="num">2</td><td class="num">4</td><td class="num">5</td><td class="num">3</td><td class="num">4</td><td class="num">3</td><td>reject</td></tr>
 <tr><td>R3</td><td>C3</td><td>PITCH</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td>reject</td></tr>
 </table>
 
-<p><strong>Early stop on round 3:</strong> no candidate improved on R2/C2's
-overall=6, and the best candidate (R3/C1) dropped pitch_authority 2
-points below the Enceladus-baseline anchor. The regression guard
-reverted the slot change and triggered the two-rounds-flat early stop.
-Total rounds run: 3 (base sweep + 2 accept + 1 revert).</p>
+<p><strong>Early stop on round 3:</strong> no candidate improved on R2/C2's overall=6, and the best (R3/C1) dropped pitch 2 below the Enceladus baseline. Regression guard reverted; two-rounds-flat early stop triggered.</p>
 
-<h2>Observations vs v1</h2>
-<ul>
-<li><strong>Base-voice choice dominates prompt tuning.</strong> Switching from
-Charon to Enceladus delivered +2 overall on its own (3→5). The best v1
-Charon-on-tuned-prompt (4/10) lost to raw Enceladus-on-seed-prompt (5/10).
-The lesson: optimize the substrate before optimizing the directive.</li>
-<li><strong>The regression guard works.</strong> R3/C1 hit overall=6 by
-gaining nasal/fry at the cost of pitch_authority (6→4). In v1's naive
-loop that candidate would have been adopted and the character's
-"quiet menace" authority would have collapsed. The strict-anchor check
-against Enceladus baseline caught it.</li>
-<li><strong>The critic is acoustically specific and consistent.</strong>
-Across all 14 critic calls in v2, the "next_prompt_mods" always named a
-valid slot and produced replacement directives in clinical acoustic
-language ("sub-laryngeal resonance", "reduced spectral tilt", "forward
-formant placement"). Temperature 0.3 (down from v1's 0.4) helped
-cross-round score consistency.</li>
-<li><strong>Single-slot mutation revealed a coupling bug.</strong> R2/C1
-(CHEST_RESONANCE mutation) scored chest=7 — highest chest of any run
-in either generation — but pacing collapsed to 4. Directives that push
-one dimension hard can cause the generator to over-rotate prosody
-elsewhere. Tournament ranking by overall correctly routed around this;
-monotonic-append would have layered the chest directive and paid the
-pacing cost anyway.</li>
-<li><strong>Ceiling: 6/10 without speaker cloning, probably 7/10 with two
-more rounds.</strong> R3/C1's overall=6-with-pitch-regression suggests a
-"pareto frontier" at around chest=5 pitch=6 pacing=8 — but cracking
-8/10+ likely requires either (a) a base voice with even more sub-bass
-than Enceladus, (b) multi-slot tournaments (mutate 2 slots per candidate
-to escape coupling traps), or (c) speaker-cloning on a Gandolfini
-reference — which was flagged out-of-scope for safety and licensing.</li>
-</ul>
+</details>
 
-<h2>Cost &amp; budget</h2>
-<p>Approximate total: ~17 TTS calls + ~17 critic calls + 1 final render.
-TTS ≈ $0.05–0.15. Critic ≈ $0.02 (audio-input tier, 14 calls × ~2k
-tokens). Total end-to-end ≈ <strong>$0.20</strong>. Budget consumed
-inside the &lt; $0.50 ceiling with ~18 calls out of a ~20 budget.
-Wall-clock ~12 min serialized at 7s inter-call pacing.</p>
+<!-- v1 deep dive — preserved for context, but collapsed by default -->
+<details>
+<summary>v1 deep-dive — the naive-append run that plateaued (click to expand)</summary>
 
-<hr>
-<p style="color:#888; font-size:.85em;">Generated 2026-04-16 · v1 source: <code>/tmp/larry-soprano-iter/iterate.py</code> · v2 source: <code>/tmp/larry-soprano-iter-v2/iterate-v2.py</code> + <code>resume-v2.py</code> · <a href="index.html">← voice catalog</a> · <a href="how-it-works.html">how-it-works →</a></p>
+<p>v1 locked on Charon from step 1. Appended each critic's mods to a growing prompt without reconciling contradictions. Got to 4/10 and stalled.</p>
+
+<div class="iter">
+<h4>Iter 1 — baseline preset <span class="score score-low">3</span></h4>
+<audio controls src="iterations/mp3/soprano-iter1.mp3"></audio>
+<div class="verdict">"Whiny, cartoonish mob henchman rather than the physically imposing, deeply resonant Tony Soprano."</div>
+<p style="font-size:.88em; color:#666;"><strong>Missing:</strong> chest resonance · heavy nasal breathing · downward pitch authority.</p>
+</div>
+
+<div class="iter">
+<h4>Iter 2 — 3 mods appended <span class="score score-low">3</span></h4>
+<audio controls src="iterations/mp3/soprano-iter2.mp3"></audio>
+<div class="verdict">"Too light, nasal, rushed — generic mob caricature."</div>
+<p style="font-size:.88em; color:#666;"><strong>Missing:</strong> deep chest weight · sluggish labored pacing · rattling vocal fry.</p>
+</div>
+
+<div class="iter">
+<h4>Iter 3 — 6 mods appended (prompt now 250 words) <span class="score score-mid">4</span></h4>
+<audio controls src="iterations/mp3/soprano-iter3.mp3"></audio>
+<div class="verdict">"Exaggerated breathing and pleading upward inflection turn Tony into a cartoonish caricature rather than a quiet, menacing boss."</div>
+<p style="font-size:.88em; color:#666;"><strong>Missing:</strong> subtle breathing (iter 1's "insert heavy breathing" mod produced theatrical sighs; critic now wants them dialed back) · flat dismissive authority · seamless fry integration.</p>
+</div>
+
+<p><strong>Takeaway from v1:</strong> iter 3's verdict explicitly called out <em>over-correction</em> from iter 1's mod — proof that monotonic append couldn't reconcile contradictions between rounds. Motivated v2's single-slot replacement + tournament selection.</p>
+
+</details>
+
+<hr style="margin: 3rem 0 1rem 0; border: none; border-top: 1px solid #ddd;">
+<p class="nav"><a href="index.html">← Voice catalog</a> <a href="how-it-works.html">How was this generated? →</a></p>
+<p style="color:#888; font-size:.82em;">Generated 2026-04-16 · v1 source: <code>/tmp/larry-soprano-iter/iterate.py</code> · v2 source: <code>/tmp/larry-soprano-iter-v2/iterate-v2.py</code> + <code>resume-v2.py</code></p>
 
 </body>
 </html>
