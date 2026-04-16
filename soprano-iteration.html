@@ -101,7 +101,9 @@
   I want a voice that sounds like <strong>Tony Soprano</strong>. Gemini 3.1 Flash TTS accepts natural-language voice prompts — so in theory I can just describe the voice and the model does the rest. In practice, how do you actually tune one of these prompts? What happens when the first attempt sounds wrong? How do you iterate toward the thing in your head without shipping each draft to a human listener?
 </blockquote>
 
-<p><strong>Experiment</strong> (2026-04-16): close the loop entirely inside Google's Gemini family — one model generates, another model listens and critiques, the critique rewrites the prompt, repeat. <strong>Generator:</strong> <code>gemini-3.1-flash-tts-preview</code>. <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> — which, unlike Claude Opus 4.6, accepts audio input natively. <strong>Target:</strong> James Gandolfini as Tony Soprano.</p>
+<p>This is a <strong>hill-climbing problem</strong>. You have a scoring function (does it sound like Tony?), a search space (every possible voice prompt), and you need to climb toward better scores. The interesting question isn't whether hill climbing works — it's <em>whether a model can be the judge you climb against</em>. If yes, you cut the human out of the inner loop and tune faster than any human could listen.</p>
+
+<p><strong>Experiment</strong> (2026-04-16): close the loop entirely inside Google's Gemini family — one model generates, another model listens and critiques, the critique moves you uphill, repeat. <strong>Generator:</strong> <code>gemini-3.1-flash-tts-preview</code>. <strong>Critic:</strong> <code>gemini-3.1-pro-preview</code> — which, unlike Claude Opus 4.6, accepts audio input natively. <strong>Target:</strong> James Gandolfini as Tony Soprano.</p>
 
 <!-- Winner box — the main takeaway goes at the top, not the bottom. -->
 <div class="winner">
@@ -131,13 +133,13 @@
 
 <p><strong>Net gain: +2 overall</strong> (v1 final 4 → v2 final 6). Most of it came from the base-voice swap before any prompt tuning.</p>
 
-<h2>Key findings</h2>
+<h2>Key findings (what hill climbing with a model-judge actually looks like)</h2>
 <ul class="findings">
-<li><strong>Base-voice choice dominates prompt tuning.</strong> Charon's specific deficits (vocal_fry=2, nasal=3) are timbre characteristics no style directive could fully mask. Enceladus shipped with nearly twice the chest resonance and pitch authority out of the box. Raw Enceladus (5/10) already beat tuned Charon (4/10). <strong>Lesson: optimize the substrate before the directive.</strong></li>
-<li><strong>Naive append is the wrong fusion strategy.</strong> v1 iter-3's critic penalized "cartoonishly loud breathing" that came from iter-1's "insert heavy breathing" directive — which was still in the prompt. Real loops need diff-then-reconcile: replace a slot's content, don't just stack imperatives.</li>
-<li><strong>The regression guard matters.</strong> v2 R3/C1 hit overall=6 by gaining nasal/fry at the cost of pitch_authority (6→4). The strict-anchor check against the Enceladus baseline caught it and reverted. In v1's naive loop that candidate would have been adopted and the character's "quiet menace" authority would have collapsed.</li>
-<li><strong>Gemini 3.1 Pro is a competent voice critic.</strong> Critiques are acoustically specific ("elongate the vowel in 'talk'", "downward pitch drop to sound dismissive", "forward formant placement") rather than vibes. Directives drop straight into a style prompt. <em>This is the capability Claude Opus 4.6 still cannot do.</em></li>
-<li><strong>Ceiling ≈ 6/10 without speaker cloning.</strong> Cracking 8/10+ probably needs (a) a base voice with more sub-bass than Enceladus, (b) multi-slot tournament candidates (escape coupling traps), or (c) speaker-cloning on a Gandolfini reference — flagged out-of-scope for safety + licensing.</li>
+<li><strong>You're hill climbing on the wrong mountain if you start with the wrong base voice.</strong> Charon's specific deficits (vocal_fry=2, nasal=3) are timbre characteristics no style directive could fully mask. Enceladus shipped with nearly twice the chest resonance and pitch authority out of the box. Raw Enceladus (5/10) already beat tuned Charon (4/10). <strong>Lesson: sweep base voices before climbing — you can't climb above the mountain you're on.</strong></li>
+<li><strong>Naive append is the wrong climb step.</strong> v1 stacked every critic directive onto a monotonically growing prompt. Iter-3's critic then penalized "cartoonishly loud breathing" that came from iter-1's "insert heavy breathing" directive — still in the prompt, now overshooting. Hill climbing needs diff-then-reconcile: replace a slot's content, don't keep adding.</li>
+<li><strong>The regression guard keeps you from climbing off a cliff.</strong> v2 R3/C1 hit overall=6 by gaining nasal/fry at the cost of pitch_authority (6→4). A greedy climb would have accepted it because the headline score went up. The strict-anchor check against the Enceladus baseline caught the regression on a strength dimension and reverted. In v1's naive loop that candidate would have been adopted and the character's "quiet menace" authority would have collapsed.</li>
+<li><strong>Gemini 3.1 Pro is a competent judge for this kind of climb.</strong> Critiques are acoustically specific ("elongate the vowel in 'talk'", "downward pitch drop to sound dismissive", "forward formant placement") rather than vibes. Directives drop straight into a style prompt. <em>This is the capability Claude Opus 4.6 still cannot do.</em> The model-as-judge lets you climb ~10× faster than shipping every draft to a human.</li>
+<li><strong>Ceiling ≈ 6/10 without speaker cloning.</strong> Local-search hill climbing converges to a local max. Cracking 8/10+ probably needs (a) a base voice with more sub-bass than Enceladus (switch mountains), (b) multi-slot tournament candidates to escape coupling traps, or (c) speaker-cloning on a Gandolfini reference — flagged out-of-scope for safety + licensing.</li>
 </ul>
 
 <h2>Cost</h2>
