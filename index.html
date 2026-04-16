@@ -39,12 +39,19 @@
   .meta a { color: #0969da; }
   a.details { color: #0969da; font-weight: 600; }
 
-  /* Speed-slider control (sticky at top of page while scrolling) */
-  #speed-control { position: sticky; top: 0; background: #fff; padding: .7rem 1rem; border-bottom: 2px solid #333; z-index: 10; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-  #speed-control label { font-weight: 600; min-width: 120px; }
-  #speed-slider { flex: 1; max-width: 320px; }
-  #speed-value { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 55px; color: #0969da; }
-  #speed-note { color: #777; font-size: .82em; flex-basis: 100%; }
+  /* Per-voice speed control: slider with snap-to-preset buttons */
+  .preset-voice { display: grid; grid-template-columns: 140px 1fr; gap: 1rem; align-items: start; padding: .7rem 0; border-bottom: 1px solid #eee; }
+  .preset-voice .meta-col { display: flex; flex-direction: column; gap: .15rem; }
+  .preset-voice .name { font-weight: 600; }
+  .preset-voice .note { color: #666; font-size: .85em; }
+  .preset-voice .controls { display: flex; flex-direction: column; gap: .4rem; }
+  .preset-voice audio { width: 100%; max-width: 360px; height: 36px; }
+  .speed-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .speed-row input[type=range] { flex: 1; max-width: 180px; }
+  .speed-row .current { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 50px; color: #0969da; font-size: .9em; }
+  .preset-btn { padding: .15rem .55rem; border: 1px solid #c0c0c0; background: #fff; border-radius: 3px; cursor: pointer; font-size: .8em; font-variant-numeric: tabular-nums; }
+  .preset-btn:hover { background: #f0f0f0; }
+  .preset-btn.active { background: #0969da; color: #fff; border-color: #0969da; }
 
   details { margin: 1rem 0; padding: .6rem 1rem; background: #fafafa; border: 1px solid #e4e4e4; border-radius: 6px; }
   details > summary { cursor: pointer; font-weight: 600; color: #333; padding: .3rem 0; }
@@ -57,14 +64,6 @@
 </style>
 </head>
 <body>
-
-<!-- Global speed control. One slider, all audio elements react via JS. -->
-<div id="speed-control">
-  <label for="speed-slider">Playback speed:</label>
-  <input id="speed-slider" type="range" min="0.5" max="2.0" step="0.05" value="1.0">
-  <span id="speed-value">1.00×</span>
-  <span id="speed-note">Browser time-stretches on the fly — no file reload. Modern browsers preserve pitch in 0.5–2× range.</span>
-</div>
 
 <h1>Larry Voice Catalog</h1>
 
@@ -101,22 +100,63 @@
 <p style="color:#777; font-size:.82em;">Takeaway: style presets cost ~20% more per utterance — the extra is persona quality, not overhead.</p>
 
 <h2>Custom voice presets</h2>
-<p style="color:#666; font-size:.9em;">Charon base voice + natural-language style directive. Use the slider above to speed up playback.</p>
+<p style="color:#666; font-size:.9em;">Charon base voice + natural-language style directive. Each voice has its own speed control — drag the slider or click a preset. Changing speed stops the audio; click ▶ to play at the new rate.</p>
 
-<div class="voice">
-  <div class="voice-name">Larry (plain Charon)</div>
-  <div class="voice-note">No style directive — baseline</div>
-  <audio controls src="mp3/larry-tts-charon.mp3"></audio>
+<div class="preset-voice" data-voice="charon-default">
+  <div class="meta-col">
+    <div class="name">Larry (plain Charon)</div>
+    <div class="note">No style directive — baseline</div>
+  </div>
+  <div class="controls">
+    <audio controls src="mp3/larry-tts-charon.mp3"></audio>
+    <div class="speed-row">
+      <input type="range" min="0.5" max="2.0" step="0.05" value="1.0">
+      <span class="current">1.00×</span>
+      <button class="preset-btn active" data-rate="1.0">1×</button>
+      <button class="preset-btn" data-rate="1.25">1.25×</button>
+      <button class="preset-btn" data-rate="1.4">1.4×</button>
+      <button class="preset-btn" data-rate="1.6">1.6×</button>
+      <button class="preset-btn" data-rate="1.8">1.8×</button>
+    </div>
+  </div>
 </div>
-<div class="voice">
-  <div class="voice-name">Freud preset</div>
-  <div class="voice-note">Thoughtful Viennese baritone — clinical, measured</div>
-  <audio controls src="mp3/larry-freud.mp3"></audio>
+
+<div class="preset-voice" data-voice="freud">
+  <div class="meta-col">
+    <div class="name">Freud preset</div>
+    <div class="note">Thoughtful Viennese baritone — clinical, measured</div>
+  </div>
+  <div class="controls">
+    <audio controls src="mp3/larry-freud.mp3"></audio>
+    <div class="speed-row">
+      <input type="range" min="0.5" max="2.0" step="0.05" value="1.0">
+      <span class="current">1.00×</span>
+      <button class="preset-btn active" data-rate="1.0">1×</button>
+      <button class="preset-btn" data-rate="1.25">1.25×</button>
+      <button class="preset-btn" data-rate="1.4">1.4×</button>
+      <button class="preset-btn" data-rate="1.6">1.6×</button>
+      <button class="preset-btn" data-rate="1.8">1.8×</button>
+    </div>
+  </div>
 </div>
-<div class="voice">
-  <div class="voice-name">Soprano preset</div>
-  <div class="voice-note">Raspy North-Jersey — intimate, affectionate menace</div>
-  <audio controls src="mp3/larry-soprano.mp3"></audio>
+
+<div class="preset-voice" data-voice="soprano">
+  <div class="meta-col">
+    <div class="name">Soprano preset</div>
+    <div class="note">Raspy North-Jersey — intimate, affectionate menace</div>
+  </div>
+  <div class="controls">
+    <audio controls src="mp3/larry-soprano.mp3"></audio>
+    <div class="speed-row">
+      <input type="range" min="0.5" max="2.0" step="0.05" value="1.0">
+      <span class="current">1.00×</span>
+      <button class="preset-btn active" data-rate="1.0">1×</button>
+      <button class="preset-btn" data-rate="1.25">1.25×</button>
+      <button class="preset-btn" data-rate="1.4">1.4×</button>
+      <button class="preset-btn" data-rate="1.6">1.6×</button>
+      <button class="preset-btn" data-rate="1.8">1.8×</button>
+    </div>
+  </div>
 </div>
 
 <details>
@@ -149,24 +189,47 @@
 <p style="margin-top: 2rem; color: #888; font-size:.85em;">Generated 2026-04-16 · <a class="details" href="how-it-works.html">How was this generated? →</a></p>
 
 <script>
-// Global speed slider — applies playbackRate to every <audio> element on the page.
-// Runs on input (live) so you can slide while audio is playing and hear the change.
+// Per-voice speed control. Each .preset-voice has its own slider + preset buttons.
+// Changing speed STOPS the audio (explicit pause+reset) and updates playbackRate.
+// The preset buttons act as snap-points; clicking one sets the slider to that rate.
+// The slider is free-continuous (0.5–2.0 step 0.05) for fine A/B between the snaps.
 (function() {
-  const slider = document.getElementById('speed-slider');
-  const label = document.getElementById('speed-value');
-  function applyRate() {
-    const rate = parseFloat(slider.value);
-    label.textContent = rate.toFixed(2) + '×';
-    document.querySelectorAll('audio').forEach(a => { a.playbackRate = rate; });
-  }
-  slider.addEventListener('input', applyRate);
-  // Also re-apply when a new audio element starts playing (covers <details> that
-  // were collapsed when the slider moved — their audio elements existed but
-  // playbackRate was not re-set if user opens them later).
-  document.querySelectorAll('audio').forEach(a => {
-    a.addEventListener('play', () => { a.playbackRate = parseFloat(slider.value); });
+  const PRESET_RATES = [1.0, 1.25, 1.4, 1.6, 1.8];
+
+  document.querySelectorAll('.preset-voice').forEach(voice => {
+    const audio = voice.querySelector('audio');
+    const slider = voice.querySelector('input[type=range]');
+    const currentLabel = voice.querySelector('.current');
+    const buttons = voice.querySelectorAll('.preset-btn');
+
+    function setRate(rate, source) {
+      // Round to nearest 0.05 so slider + buttons stay in sync visually.
+      const r = Math.round(rate * 20) / 20;
+      // Stop playback — per Igor's ask: changing speed halts the voice, user re-clicks play.
+      if (!audio.paused) audio.pause();
+      audio.currentTime = 0;
+      audio.playbackRate = r;
+      // Update UI
+      slider.value = r;
+      currentLabel.textContent = r.toFixed(2) + '×';
+      // Mark the matching preset button (if any) as active; nearest wins on a slide
+      // that lands near a snap.
+      const epsilon = 0.025;  // within this of a preset = that preset is "active"
+      buttons.forEach(btn => {
+        const btnRate = parseFloat(btn.dataset.rate);
+        btn.classList.toggle('active', Math.abs(btnRate - r) < epsilon);
+      });
+    }
+
+    slider.addEventListener('input', e => setRate(parseFloat(e.target.value), 'slider'));
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => setRate(parseFloat(btn.dataset.rate), 'button'));
+    });
+    // Ensure rate persists even when audio replays after a pause.
+    audio.addEventListener('play', () => {
+      audio.playbackRate = parseFloat(slider.value);
+    });
   });
-  applyRate();
 })();
 </script>
 
