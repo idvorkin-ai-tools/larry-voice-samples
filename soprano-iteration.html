@@ -54,6 +54,18 @@
   a.subtle { color: #666; font-size: .85em; }
   .nav { margin: 0 0 1rem 0; font-size: .9em; color: #777; }
   .nav a { margin-right: 1rem; }
+  /* Speed control — same mechanic as the catalog page: one slider + preset
+     buttons apply playbackRate live to every <audio> on the page. */
+  #speed-control { background: #f4f4f4; padding: .6rem .8rem; border: 1px solid #e0e0e0; border-radius: 6px; margin: .5rem 0 1.2rem 0; }
+  #speed-control .row1 { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .3rem; }
+  #speed-control label { font-weight: 600; min-width: 100px; }
+  #speed-slider { flex: 1; min-width: 140px; max-width: 260px; }
+  #speed-value { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 55px; color: #0969da; text-align: center; }
+  #speed-control .row2 { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .preset-btn { padding: .2rem .6rem; border: 1px solid #c0c0c0; background: #fff; border-radius: 3px; cursor: pointer; font-size: .8em; font-variant-numeric: tabular-nums; }
+  .preset-btn:hover { background: #f0f0f0; }
+  .preset-btn.active { background: #0969da; color: #fff; border-color: #0969da; }
+  #speed-note { color: #777; font-size: .78em; font-style: italic; }
 </style>
 </head>
 <body>
@@ -61,6 +73,28 @@
 <p class="nav"><a href="index.html">← Voice catalog</a> <a href="how-it-works.html">How was this generated? →</a></p>
 
 <h1>Soprano iteration — can Gemini critique its own voice?</h1>
+
+<!-- Global speed control — applies playbackRate to every <audio> on the page.
+     Currently-playing audio keeps playing at the new rate (no pause/rewind). -->
+<div id="speed-control">
+  <div class="row1">
+    <label for="speed-slider">Playback speed:</label>
+    <input id="speed-slider" type="range" min="0.5" max="2.6" step="0.05" value="1.0">
+    <span id="speed-value">1.00×</span>
+  </div>
+  <div class="row2">
+    <button class="preset-btn active" data-rate="1.0">1×</button>
+    <button class="preset-btn" data-rate="1.25">1.25×</button>
+    <button class="preset-btn" data-rate="1.4">1.4×</button>
+    <button class="preset-btn" data-rate="1.6">1.6×</button>
+    <button class="preset-btn" data-rate="1.8">1.8×</button>
+    <button class="preset-btn" data-rate="2.0">2.0×</button>
+    <button class="preset-btn" data-rate="2.2">2.2×</button>
+    <button class="preset-btn" data-rate="2.4">2.4×</button>
+    <button class="preset-btn" data-rate="2.6">2.6×</button>
+    <span id="speed-note">live — applies to every clip on the page</span>
+  </div>
+</div>
 
 <h2 style="margin-top:.5rem; color:#222; border:none;">The user problem</h2>
 <blockquote style="font-style:italic; color:#333; border-left:4px solid #0969da; background:#f5faff; padding:.8rem 1.2rem; margin:.5rem 0 1rem 0; border-radius:0 6px 6px 0;">
@@ -180,6 +214,40 @@
 <hr style="margin: 3rem 0 1rem 0; border: none; border-top: 1px solid #ddd;">
 <p class="nav"><a href="index.html">← Voice catalog</a> <a href="how-it-works.html">How was this generated? →</a></p>
 <p style="color:#888; font-size:.82em;">Generated 2026-04-16 · v1 source: <code>/tmp/larry-soprano-iter/iterate.py</code> · v2 source: <code>/tmp/larry-soprano-iter-v2/iterate-v2.py</code> + <code>resume-v2.py</code></p>
+
+<script>
+// Global speed control — same pattern as the catalog page.
+// Applies playbackRate to every <audio> on the page; currently-playing
+// audio keeps playing at the new rate (no pause/rewind).
+(function() {
+  const slider = document.getElementById('speed-slider');
+  const label = document.getElementById('speed-value');
+  const buttons = document.querySelectorAll('#speed-control .preset-btn');
+  const allAudio = () => document.querySelectorAll('audio');
+
+  function setRate(rate) {
+    const r = Math.round(rate * 20) / 20;
+    slider.value = r;
+    label.textContent = r.toFixed(2) + '×';
+    allAudio().forEach(a => { a.playbackRate = r; });
+    const epsilon = 0.025;
+    buttons.forEach(btn => {
+      const btnRate = parseFloat(btn.dataset.rate);
+      btn.classList.toggle('active', Math.abs(btnRate - r) < epsilon);
+    });
+  }
+
+  slider.addEventListener('input', e => setRate(parseFloat(e.target.value)));
+  buttons.forEach(btn => btn.addEventListener('click', () => setRate(parseFloat(btn.dataset.rate))));
+  // New audio elements (including those inside <details> expanded later)
+  // inherit the current rate when they start playing.
+  document.addEventListener('play', e => {
+    if (e.target.tagName === 'AUDIO') e.target.playbackRate = parseFloat(slider.value);
+  }, true);
+
+  setRate(1.0);
+})();
+</script>
 
 </body>
 </html>
