@@ -39,8 +39,8 @@
   .meta a { color: #0969da; }
   a.details { color: #0969da; font-weight: 600; }
 
-  /* Global speed control — sticky at top, controls every <audio> on the page. */
-  #speed-control { position: sticky; top: 0; background: #fff; padding: .6rem 1rem; border-bottom: 2px solid #333; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,.05); }
+  /* Speed control — sits inside the Custom Voice Presets section only. */
+  #speed-control { background: #f4f4f4; padding: .6rem .8rem; border: 1px solid #e0e0e0; border-radius: 6px; margin: .5rem 0 1rem 0; }
   #speed-control .row1 { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .25rem; }
   #speed-control label { font-weight: 600; min-width: 100px; }
   #speed-slider { flex: 1; min-width: 140px; max-width: 260px; }
@@ -67,9 +67,25 @@
 </head>
 <body>
 
-<!-- Global speed control. One slider + preset buttons, applies to every audio
-     element on the page. Currently-playing audio keeps playing at the new
-     rate with no interruption. Paused audio inherits the rate on its next play. -->
+<h1>Larry Voice Catalog</h1>
+
+<div class="meta">
+  <strong>Model:</strong> <code>gemini-3.1-flash-tts-preview</code><br>
+  <strong>Date:</strong> 2026-04-16 · <strong>Phrase:</strong> "Hi Igor, this is Larry testing the Gemini voice catalog at regular pacing."<br>
+  <strong>Audio:</strong> 24 kHz mono · <strong>Pricing:</strong> ~$0.02 per 5 s utterance · <strong>Rate limit:</strong> 10 rpm (preview)<br>
+  <strong>Details:</strong> <a class="details" href="how-it-works.html">How was this generated? →</a> · <a class="details" href="soprano-iteration.html">Soprano iteration loop →</a><br>
+  <strong>Repo:</strong> <a href="https://github.com/idvorkin-ai-tools/larry-voice-samples">github.com/idvorkin-ai-tools/larry-voice-samples</a>
+</div>
+
+<div class="preset-callout">
+ℹ️ <strong>These samples are pre-generated, not live.</strong> Each MP3 was produced once via the Gemini 3.1 Flash TTS preview endpoint and committed to this repo. The speed slider above uses the browser's <code>HTMLMediaElement.playbackRate</code> — it doesn't call the API. This keeps the page free and instant.
+</div>
+
+<h2>Custom voice presets</h2>
+<p style="color:#666; font-size:.9em;">Charon base voice + natural-language style directive.</p>
+
+<!-- Speed control — scoped to this section visually; affects every audio element
+     on the page via JS. Change is live: playing audio keeps playing at the new rate. -->
 <div id="speed-control">
   <div class="row1">
     <label for="speed-slider">Playback speed:</label>
@@ -89,43 +105,6 @@
     <span id="speed-note">live — playing audio keeps playing at the new rate</span>
   </div>
 </div>
-
-<h1>Larry Voice Catalog</h1>
-
-<div class="meta">
-  <strong>Model:</strong> <code>gemini-3.1-flash-tts-preview</code><br>
-  <strong>Date:</strong> 2026-04-16 · <strong>Phrase:</strong> "Hi Igor, this is Larry testing the Gemini voice catalog at regular pacing."<br>
-  <strong>Audio:</strong> 24 kHz mono · <strong>Pricing:</strong> ~$0.02 per 5 s utterance · <strong>Rate limit:</strong> 10 rpm (preview)<br>
-  <strong>Details:</strong> <a class="details" href="how-it-works.html">How was this generated? →</a> · <a class="details" href="soprano-iteration.html">Soprano iteration loop →</a><br>
-  <strong>Repo:</strong> <a href="https://github.com/idvorkin-ai-tools/larry-voice-samples">github.com/idvorkin-ai-tools/larry-voice-samples</a>
-</div>
-
-<div class="preset-callout">
-ℹ️ <strong>These samples are pre-generated, not live.</strong> Each MP3 was produced once via the Gemini 3.1 Flash TTS preview endpoint and committed to this repo. The speed slider above uses the browser's <code>HTMLMediaElement.playbackRate</code> — it doesn't call the API. This keeps the page free and instant.
-</div>
-
-<h2>Latency &amp; cost reference</h2>
-<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Cost per minute of output is fixed ($0.24 = 24 000 audio tokens × $10/1M). Wall clock scales ≈ linearly with audio length — voice choice shifts it by ±10% only, so one set of numbers covers the whole catalog.</p>
-<table>
-<tr><th>Audio length</th><th>Wall clock (typical)</th><th>Cost</th></tr>
-<tr><td>5 s utterance</td><td class="num">~5 s (range 4.2–6.8)</td><td class="num">$0.02</td></tr>
-<tr><td>1 min utterance</td><td class="num">~60 s</td><td class="num">$0.24</td></tr>
-<tr><td>10 min long-form</td><td class="num">~10 min</td><td class="num">$2.40</td></tr>
-</table>
-<p style="color:#777; font-size:.82em;">Text input at ~150 chars/min is $0.00002 (negligible). Preview tier; may shift at GA.</p>
-
-<h2>Custom preset latency (measured)</h2>
-<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Style directives add zero API-side overhead — Gemini reads the prose as metadata, not speech. BUT the styled output is typically 15–25% longer because the model adds persona pauses/beats. Same phrase, different prompts:</p>
-<table>
-<tr><th>Preset</th><th>Wall clock</th><th>Audio length</th><th>Cost</th></tr>
-<tr><td>Plain Charon</td><td class="num">4.7 s</td><td class="num">6.4 s</td><td class="num">$0.026</td></tr>
-<tr><td>+ Soprano style</td><td class="num">4.7 s</td><td class="num">7.8 s</td><td class="num">$0.031</td></tr>
-<tr><td>+ Freud style (diff phrase)</td><td class="num">~5 s</td><td class="num">17.3 s</td><td class="num">~$0.07</td></tr>
-</table>
-<p style="color:#777; font-size:.82em;">Takeaway: style presets cost ~20% more per utterance — the extra is persona quality, not overhead.</p>
-
-<h2>Custom voice presets</h2>
-<p style="color:#666; font-size:.9em;">Charon base voice + natural-language style directive. Speed control at top applies to all voices.</p>
 
 <div class="preset-voice">
   <div class="name">Larry (plain Charon)</div>
@@ -171,6 +150,28 @@
 <summary>Not available on preview endpoint — 13 voices (click to expand)</summary>
 <p style="font-size:.9em; color:#555;">These names appear in Google's documented catalog but return silent failures on <code>gemini-3.1-flash-tts-preview</code> as of 2026-04-16: Achernar, Achird, Alnilam, Gacrux, Laomedeia, Pulcherrima, Rasalgethi, Sadachbia, Sadaltager, Schedar, Sulafat, Vindemiatrix, Zubenelgenubi.</p>
 </details>
+
+<h2 style="margin-top:3rem;">Stats: latency &amp; cost</h2>
+
+<h3>Catalog reference</h3>
+<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Cost per minute of output is fixed ($0.24 = 24 000 audio tokens × $10/1M). Wall clock scales ≈ linearly with audio length — voice choice shifts it by ±10% only.</p>
+<table>
+<tr><th>Audio length</th><th>Wall clock (typical)</th><th>Cost</th></tr>
+<tr><td>5 s utterance</td><td class="num">~5 s (range 4.2–6.8)</td><td class="num">$0.02</td></tr>
+<tr><td>1 min utterance</td><td class="num">~60 s</td><td class="num">$0.24</td></tr>
+<tr><td>10 min long-form</td><td class="num">~10 min</td><td class="num">$2.40</td></tr>
+</table>
+<p style="color:#777; font-size:.82em;">Text input at ~150 chars/min is $0.00002 (negligible). Preview tier; may shift at GA.</p>
+
+<h3>Custom preset latency (measured)</h3>
+<p style="color:#666; font-size:.9em; margin-top:-.3rem;">Style directives add zero API-side overhead — Gemini reads the prose as metadata, not speech. Styled output is typically 15–25% longer because the model adds persona pauses/beats. Same phrase, different prompts:</p>
+<table>
+<tr><th>Preset</th><th>Wall clock</th><th>Audio length</th><th>Cost</th></tr>
+<tr><td>Plain Charon</td><td class="num">4.7 s</td><td class="num">6.4 s</td><td class="num">$0.026</td></tr>
+<tr><td>+ Soprano style</td><td class="num">4.7 s</td><td class="num">7.8 s</td><td class="num">$0.031</td></tr>
+<tr><td>+ Freud style (diff phrase)</td><td class="num">~5 s</td><td class="num">17.3 s</td><td class="num">~$0.07</td></tr>
+</table>
+<p style="color:#777; font-size:.82em;">Takeaway: style presets cost ~20% more per utterance — the extra is persona quality, not overhead.</p>
 
 <p style="margin-top: 2rem; color: #888; font-size:.85em;">Generated 2026-04-16 · <a class="details" href="how-it-works.html">How was this generated? →</a></p>
 
